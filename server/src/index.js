@@ -83,9 +83,11 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+const HOST = '0.0.0.0'; // Bind to all network interfaces for network access
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`✓ Server running on http://localhost:${PORT}`);
+  console.log(`✓ Network access: http://192.168.29.84:${PORT}`);
 });
 
 module.exports = { app, io };
