@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { authAPI } from '../api/auth.api';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -12,9 +12,9 @@ export default function Register() {
     phone: ''
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -27,23 +27,29 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
-      const response = await register(formData);
-      const role = response?.data?.user?.role;
+      await authAPI.register(formData);
 
-      // Navigate based on role
-      if (role === 'donor') {
-        navigate('/donor');
-      } else if (role === 'ngo') {
-        navigate('/ngo');
-      } else if (role === 'admin') {
-        navigate('/admin');
-      } else {
-        // Default fallback if role is not recognized
-        navigate('/');
-      }
+      // Show success message
+      setSuccess('Account created successfully! Please login to continue.');
+
+      // Clear form
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        role: 'donor',
+        org_name: '',
+        phone: ''
+      });
+
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed');
     } finally {
@@ -62,6 +68,12 @@ export default function Register() {
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            {success}
           </div>
         )}
 
