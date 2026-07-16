@@ -66,21 +66,23 @@ export default function Register() {
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
+          <div className="alert alert-error">
+            <span className="text-xl">❌</span>
+            <span>{error}</span>
           </div>
         )}
 
         {success && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-            {success}
+          <div className="alert alert-success">
+            <span className="text-xl">✅</span>
+            <span>{success}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name
+            <label className="label">
+              Full Name *
             </label>
             <input
               type="text"
@@ -94,8 +96,8 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+            <label className="label">
+              Email *
             </label>
             <input
               type="email"
@@ -109,8 +111,8 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+            <label className="label">
+              Password *
             </label>
             <input
               type="password"
@@ -125,7 +127,7 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="label">
               Phone
             </label>
             <input
@@ -139,25 +141,25 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              I am a
+            <label className="label">
+              I am a *
             </label>
             <select
               name="role"
               value={formData.role}
               onChange={handleChange}
-              className="input"
+              className="input cursor-pointer"
               required
             >
-              <option value="donor">Donor (Restaurant/Hotel/Individual)</option>
-              <option value="ngo">NGO/Volunteer</option>
+              <option value="donor">🍽️ Donor (Restaurant/Hotel/Individual)</option>
+              <option value="ngo">🤝 NGO/Volunteer</option>
             </select>
           </div>
 
           {formData.role === 'ngo' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Organization Name
+            <div className="animate-slide-down">
+              <label className="label">
+                Organization Name *
               </label>
               <input
                 type="text"
@@ -174,9 +176,9 @@ export default function Register() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full btn btn-primary disabled:opacity-50"
+            className="w-full btn btn-primary disabled:opacity-50 mt-6"
           >
-            {loading ? 'Creating Account...' : 'Register'}
+            {loading ? 'Creating Account...' : '✅ Create Account'}
           </button>
         </form>
 

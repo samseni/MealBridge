@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import ToastProvider from './components/common/ToastProvider';
 
 // Pages
 import Login from './pages/Login';
@@ -90,6 +91,7 @@ function App() {
         <SocketProvider>
           <div className="min-h-screen bg-gray-50">
             <AppRoutes />
+            <ToastProvider />
           </div>
         </SocketProvider>
       </AuthProvider>

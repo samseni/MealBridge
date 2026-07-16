@@ -47,15 +47,16 @@ export default function Login() {
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
+          <div className="alert alert-error">
+            <span className="text-xl">❌</span>
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+            <label className="label">
+              Email *
             </label>
             <input
               type="email"
@@ -68,8 +69,8 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+            <label className="label">
+              Password *
             </label>
             <input
               type="password"
@@ -84,9 +85,9 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full btn btn-primary disabled:opacity-50"
+            className="w-full btn btn-primary disabled:opacity-50 mt-6"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Signing in...' : '🍛 Sign In'}
           </button>
         </form>
 
