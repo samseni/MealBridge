@@ -23,26 +23,44 @@ exports.register = async (req, res, next) => {
     const password_hash = await bcrypt.hash(password, 10);
 
     // Build query based on provided fields
-    let location = null;
+    let query;
+    let params;
+
     if (lat && lng) {
-      location = `POINT(${lng} ${lat})`;
+      query = `
+        INSERT INTO users (name, email, password_hash, role, org_name, phone, address, location)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, ST_GeogFromText('SRID=4326;POINT(' || $8 || ' ' || $9 || ')'))
+        RETURNING id, name, email, role, org_name, phone, verification, created_at
+      `;
+      params = [
+        name,
+        email,
+        password_hash,
+        role,
+        org_name || null,
+        phone || null,
+        address || null,
+        lng,
+        lat
+      ];
+    } else {
+      query = `
+        INSERT INTO users (name, email, password_hash, role, org_name, phone, address, location)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
+        RETURNING id, name, email, role, org_name, phone, verification, created_at
+      `;
+      params = [
+        name,
+        email,
+        password_hash,
+        role,
+        org_name || null,
+        phone || null,
+        address || null
+      ];
     }
 
-    const query = `
-      INSERT INTO users (name, email, password_hash, role, org_name, phone, address, location)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, ${location ? `ST_GeogFromText('SRID=4326;${location}')` : 'NULL'})
-      RETURNING id, name, email, role, org_name, phone, verification, created_at
-    `;
-
-    const result = await pool.query(query, [
-      name,
-      email,
-      password_hash,
-      role,
-      org_name || null,
-      phone || null,
-      address || null
-    ]);
+    const result = await pool.query(query, params);
 
     const user = result.rows[0];
     const token = generateToken(user);
@@ -139,7 +157,9 @@ exports.updateProfile = async (req, res, next) => {
       values.push(address);
     }
     if (lat && lng) {
-      updates.push(`location = ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})')`);
+      updates.push(`location = ST_GeogFromText('SRID=4326;POINT(' || $${paramCount++} || ' ' || $${paramCount++} || ')')`);
+      values.push(lng);
+      values.push(lat);
     }
 
     if (updates.length === 0) {

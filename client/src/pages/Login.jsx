@@ -18,12 +18,19 @@ export default function Login() {
 
     try {
       const response = await login({ email, password });
-      const role = response.data.user.role;
+      const role = response?.data?.user?.role;
 
       // Navigate based on role
-      if (role === 'donor') navigate('/donor');
-      else if (role === 'ngo') navigate('/ngo');
-      else if (role === 'admin') navigate('/admin');
+      if (role === 'donor') {
+        navigate('/donor');
+      } else if (role === 'ngo') {
+        navigate('/ngo');
+      } else if (role === 'admin') {
+        navigate('/admin');
+      } else {
+        // Default fallback if role is not recognized
+        navigate('/');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
     } finally {
