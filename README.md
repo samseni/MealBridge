@@ -623,37 +623,265 @@ VITE_SOCKET_URL=http://localhost:5000
 VITE_GOOGLE_MAPS_BROWSER_KEY=your_browser_google_maps_key
 ```
 
-### Step 5: Run Application
+### Step 5: Run Application Locally (Development)
 
-**Development Mode:**
+**Prerequisites Check:**
+
+Before running the app, ensure you've completed Steps 1-4:
+- ✅ Repository cloned
+- ✅ Backend dependencies installed (`server/node_modules` exists)
+- ✅ Frontend dependencies installed (`client/node_modules` exists)
+- ✅ Database created and schema loaded
+- ✅ Environment variables configured (`.env` files in both `server/` and `client/`)
+
+**Starting the Application:**
+
+You need **two separate terminal windows** running simultaneously:
+
+#### Terminal 1: Backend Server
 
 ```bash
-# Terminal 1 - Backend
-cd server
-npm run dev
+# Navigate to server directory
+cd MealBridge/server
 
-# Terminal 2 - Frontend
-cd client
+# Start development server with hot reload
 npm run dev
 ```
 
-**Production Mode:**
+**Expected Output:**
+```
+[nodemon] starting `node src/index.js`
+✓ Database connected successfully
+✓ Socket.io server initialized
+✓ Server running on http://localhost:5000
+[nodemon] watching for changes...
+```
+
+**Common Issues:**
+- ❌ `Error: connect ECONNREFUSED` → PostgreSQL not running. Start it: `sudo service postgresql start`
+- ❌ `Error: database "mealbridge" does not exist` → Run Step 3 again
+- ❌ `Port 5000 already in use` → Kill process: `sudo lsof -ti:5000 | xargs kill -9`
+
+---
+
+#### Terminal 2: Frontend Development Server
 
 ```bash
-# Build frontend
+# Navigate to client directory (from project root)
+cd MealBridge/client
+
+# Start Vite dev server
+npm run dev
+```
+
+**Expected Output:**
+```
+VITE v5.x.x  ready in 500 ms
+
+➜  Local:   http://localhost:5173/
+➜  Network: use --host to expose
+➜  press h + enter to show help
+```
+
+**Common Issues:**
+- ❌ `Port 5173 already in use` → Kill process: `sudo lsof -ti:5173 | xargs kill -9`
+- ❌ `VITE_API_URL is not defined` → Check `client/.env` file exists
+
+---
+
+**Verification Steps:**
+
+Once both servers are running, verify everything works:
+
+**1. Backend Health Check**
+```bash
+# Open a third terminal and run:
+curl http://localhost:5000/api/health
+
+# Expected response:
+# {"status":"ok","database":"connected","timestamp":"2024-01-15T10:30:00Z"}
+```
+
+**2. Database Connection Test**
+```bash
+psql -d mealbridge -c "SELECT COUNT(*) FROM users;"
+
+# Expected: A number (0 if no seed data, >0 if seeded)
+```
+
+**3. Frontend Access**
+- Open browser: **http://localhost:5173**
+- You should see the MealBridge login/registration page
+- Check browser console (F12 → Console tab):
+  - ✅ Should show: `Socket.io connected`
+  - ❌ No CORS errors
+  - ❌ No 404 errors
+
+**4. Test Full Stack Integration**
+
+Create a test account:
+```bash
+curl -X POST http://localhost:5000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Donor",
+    "email": "donor@test.com",
+    "password": "test123",
+    "role": "donor",
+    "phone": "1234567890"
+  }'
+
+# Expected: JSON response with user data and JWT token
+```
+
+Then login via the frontend UI with:
+- Email: `donor@test.com`
+- Password: `test123`
+
+---
+
+**Quick Start Script (Optional)**
+
+Create a file `start-dev.sh` in the project root:
+
+```bash
+#!/bin/bash
+echo "🚀 Starting MealBridge in development mode..."
+
+# Check if PostgreSQL is running
+if ! pg_isready > /dev/null 2>&1; then
+    echo "❌ PostgreSQL is not running. Starting it..."
+    sudo service postgresql start
+fi
+
+# Start backend in background
+cd server
+npm run dev &
+BACKEND_PID=$!
+echo "✅ Backend started (PID: $BACKEND_PID)"
+
+# Wait for backend to be ready
+sleep 3
+
+# Start frontend in background
+cd ../client
+npm run dev &
+FRONTEND_PID=$!
+echo "✅ Frontend started (PID: $FRONTEND_PID)"
+
+echo ""
+echo "📱 Frontend: http://localhost:5173"
+echo "🔌 Backend:  http://localhost:5000"
+echo ""
+echo "Press Ctrl+C to stop both servers"
+
+# Wait for Ctrl+C
+trap "kill $BACKEND_PID $FRONTEND_PID; exit" INT
+wait
+```
+
+Make executable and run:
+```bash
+chmod +x start-dev.sh
+./start-dev.sh
+```
+
+---
+
+**Development Workflow Tips:**
+
+- **Hot Reload**: Both servers auto-reload on file changes
+- **Backend logs**: Watch Terminal 1 for API requests and errors
+- **Frontend errors**: Check Terminal 2 and browser console
+- **Database changes**: If you modify schema, restart backend: `Ctrl+C` then `npm run dev`
+- **Clear cache**: If frontend behaves oddly, hard refresh: `Ctrl+Shift+R` (or `Cmd+Shift+R` on Mac)
+
+### Step 6: Run Application in Production
+
+**Option 1: Production Build (Single Server)**
+
+```bash
+# 1. Build frontend
 cd client
 npm run build
+# Creates optimized build in client/dist/
 
-# Serve with backend
+# 2. Start backend in production mode
 cd ../server
 NODE_ENV=production npm start
+# Backend will serve frontend static files from client/dist/
 ```
 
-### Step 6: Access Application
+**Option 2: Using PM2 (Recommended for Production)**
 
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:5000/api
-- **API Health Check:** http://localhost:5000/api/health
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start backend with PM2
+cd server
+pm2 start src/index.js --name mealbridge-api -i max
+pm2 save
+pm2 startup  # Follow instructions for auto-restart on reboot
+```
+
+**Verify Production Deployment:**
+
+1. **Check Application Status:**
+   ```bash
+   # If using PM2:
+   pm2 status
+   pm2 logs mealbridge-api --lines 50
+
+   # If using npm start:
+   # Check process is running
+   ps aux | grep node
+   ```
+
+2. **Test API Endpoints:**
+   ```bash
+   # Health check
+   curl http://localhost:5000/api/health
+
+   # Test registration endpoint
+   curl -X POST http://localhost:5000/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"name":"Test User","email":"test@example.com","password":"test123","role":"donor"}'
+   ```
+
+3. **Access Frontend:**
+   - Browser: http://localhost:5000 (or your domain)
+   - Check browser console for errors
+   - Verify Socket.io connection (check DevTools Network tab)
+
+4. **Database Verification:**
+   ```bash
+   # Check database is accessible
+   psql -d mealbridge -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public';"
+
+   # Verify PostGIS extension
+   psql -d mealbridge -c "SELECT PostGIS_Version();"
+   ```
+
+5. **Monitor Logs:**
+   ```bash
+   # PM2 logs
+   pm2 logs mealbridge-api
+
+   # Or check log files if configured
+   tail -f /var/log/mealbridge/app.log
+   ```
+
+**Production Checklist:**
+
+- [ ] Environment variables set correctly in `server/.env`
+- [ ] `NODE_ENV=production` is set
+- [ ] Database has all required tables and extensions
+- [ ] API health check returns success
+- [ ] Frontend loads without console errors
+- [ ] Socket.io connection establishes successfully
+- [ ] API keys are valid and not rate-limited
+- [ ] Firewall allows required ports (80, 443, 5000)
 
 ---
 
