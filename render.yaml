@@ -1,11 +1,10 @@
-services:
-  # PostgreSQL Database
-  - type: postgres
-    name: mealbridge-db
-    plan: free
+databases:
+  - name: mealbridge-db
     databaseName: mealbridge
     user: mealbridge
+    plan: free
 
+services:
   # Backend API Server
   - type: web
     name: mealbridge-backend
