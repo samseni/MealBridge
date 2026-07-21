@@ -1,6 +1,6 @@
 services:
   # PostgreSQL Database
-  - type: pgsql
+  - type: postgres
     name: mealbridge-db
     plan: free
     databaseName: mealbridge
