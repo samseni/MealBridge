@@ -43,10 +43,8 @@ services:
         value: 100
 
   # Frontend Static Site
-  - type: web
+  - type: static
     name: mealbridge-frontend
-    runtime: node
-    plan: free
     buildCommand: cd client && npm install && npm run build
     staticPublishPath: ./client/dist
     envVars:
