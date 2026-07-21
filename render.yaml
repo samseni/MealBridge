@@ -41,16 +41,3 @@ services:
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
         value: 100
-
-  # Frontend Static Site
-  - type: static
-    name: mealbridge-frontend
-    buildCommand: cd client && npm install && npm run build
-    staticPublishPath: ./client/dist
-    envVars:
-      - key: VITE_API_URL
-        sync: false
-      - key: VITE_SOCKET_URL
-        sync: false
-      - key: VITE_GOOGLE_MAPS_BROWSER_KEY
-        sync: false
