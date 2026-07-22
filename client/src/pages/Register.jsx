@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../api/auth.api';
+import Alert from '../components/common/Alert';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -66,17 +67,18 @@ export default function Register() {
         </div>
 
         {error && (
-          <div className="alert alert-error">
-            <span className="text-xl">❌</span>
-            <span>{error}</span>
-          </div>
+          <Alert
+            type="error"
+            message={error}
+            onClose={() => setError('')}
+          />
         )}
 
         {success && (
-          <div className="alert alert-success">
-            <span className="text-xl">✅</span>
-            <span>{success}</span>
-          </div>
+          <Alert
+            type="success"
+            message={success}
+          />
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">

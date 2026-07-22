@@ -78,13 +78,41 @@ export default function NgoDashboard() {
 
   if (user?.verification === 'pending') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="card max-w-md text-center">
-          <h2 className="text-2xl font-bold mb-4">⏳ Verification Pending</h2>
-          <p className="text-gray-600">
-            Your NGO account is pending verification. Please wait for admin approval.
+      <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-primary-50 flex items-center justify-center p-4">
+        <div className="card max-w-lg w-full text-center animate-bounce-in">
+          <div className="mb-6">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-4xl shadow-lg shadow-orange-500/30 animate-pulse">
+              ⏳
+            </div>
+            <h2 className="text-3xl font-bold mb-3 text-gray-900">Verification Pending</h2>
+            <div className="w-16 h-1 bg-gradient-to-r from-yellow-500 to-orange-500 mx-auto rounded-full mb-6"></div>
+          </div>
+
+          <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 mb-6 border border-yellow-200">
+            <p className="text-gray-700 leading-relaxed mb-4">
+              Your NGO account is currently under review by our admin team.
+            </p>
+            <div className="text-sm text-gray-600 space-y-2">
+              <p className="flex items-center justify-center gap-2">
+                <span className="text-green-500">✓</span>
+                <span>Account created successfully</span>
+              </p>
+              <p className="flex items-center justify-center gap-2">
+                <span className="text-yellow-500">⏳</span>
+                <span>Awaiting admin verification</span>
+              </p>
+              <p className="flex items-center justify-center gap-2 text-gray-400">
+                <span>○</span>
+                <span>Access to dashboard</span>
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500 mb-6">
+            You will receive a notification once your account is verified.
           </p>
-          <button onClick={logout} className="btn btn-secondary mt-6">
+
+          <button onClick={logout} className="btn btn-outline w-full">
             Logout
           </button>
         </div>
@@ -94,15 +122,45 @@ export default function NgoDashboard() {
 
   if (user?.verification === 'rejected') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="card max-w-md text-center">
-          <h2 className="text-2xl font-bold mb-4 text-red-600">❌ Verification Rejected</h2>
-          <p className="text-gray-600">
-            Your NGO account verification was rejected. Please contact support.
-          </p>
-          <button onClick={logout} className="btn btn-secondary mt-6">
-            Logout
-          </button>
+      <div className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-orange-50 flex items-center justify-center p-4">
+        <div className="card max-w-lg w-full text-center animate-bounce-in">
+          <div className="mb-6">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center text-4xl shadow-lg shadow-red-500/30">
+              ❌
+            </div>
+            <h2 className="text-3xl font-bold mb-3 text-red-600">Verification Rejected</h2>
+            <div className="w-16 h-1 bg-gradient-to-r from-red-500 to-red-600 mx-auto rounded-full mb-6"></div>
+          </div>
+
+          <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 mb-6 border border-red-200">
+            <p className="text-gray-700 leading-relaxed mb-4">
+              Unfortunately, your NGO verification request has been declined.
+            </p>
+            <div className="text-sm text-gray-600 space-y-2">
+              <p className="font-medium text-red-600 mb-2">Next steps:</p>
+              <p className="flex items-start gap-2 text-left">
+                <span className="text-red-500 mt-0.5">•</span>
+                <span>Contact our support team for more information</span>
+              </p>
+              <p className="flex items-start gap-2 text-left">
+                <span className="text-red-500 mt-0.5">•</span>
+                <span>Review and update your organization details</span>
+              </p>
+              <p className="flex items-start gap-2 text-left">
+                <span className="text-red-500 mt-0.5">•</span>
+                <span>Reapply with correct documentation</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button onClick={logout} className="btn btn-outline flex-1">
+              Logout
+            </button>
+            <button className="btn btn-primary flex-1">
+              Contact Support
+            </button>
+          </div>
         </div>
       </div>
     );

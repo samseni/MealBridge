@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Alert from '../components/common/Alert';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -47,10 +48,11 @@ export default function Login() {
         </div>
 
         {error && (
-          <div className="alert alert-error">
-            <span className="text-xl">❌</span>
-            <span>{error}</span>
-          </div>
+          <Alert
+            type="error"
+            message={error}
+            onClose={() => setError('')}
+          />
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
