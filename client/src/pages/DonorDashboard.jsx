@@ -4,6 +4,8 @@ import { listingsAPI } from '../api/listings.api';
 import { useSocket } from '../context/SocketContext';
 import StatsCard from '../components/donor/StatsCard';
 import { showToast } from '../components/common/ToastProvider';
+import ImageUpload from '../components/common/ImageUpload';
+import axios from 'axios';
 
 export default function DonorDashboard() {
   const { user, logout } = useAuth();
@@ -25,6 +27,7 @@ export default function DonorDashboard() {
     lat: '',
     lng: ''
   });
+  const [images, setImages] = useState([]);
 
   useEffect(() => {
     fetchListings();
@@ -57,11 +60,39 @@ export default function DonorDashboard() {
     setLoading(true);
 
     try {
+      let imageUrls = [];
+
+      // Upload images if any
+      if (images.length > 0) {
+        const formDataImages = new FormData();
+        images.forEach((image) => {
+          if (image.file) {
+            formDataImages.append('images', image.file);
+          }
+        });
+
+        const token = localStorage.getItem('token');
+        const uploadResponse = await axios.post(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/listings/upload-images`,
+          formDataImages,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+
+        imageUrls = uploadResponse.data.image_urls;
+      }
+
+      // Create listing with image URLs
       await listingsAPI.create({
         ...formData,
         servings: parseInt(formData.servings),
         lat: parseFloat(formData.lat),
-        lng: parseFloat(formData.lng)
+        lng: parseFloat(formData.lng),
+        image_urls: imageUrls
       });
 
       showToast.success('Listing created successfully!');
@@ -78,6 +109,7 @@ export default function DonorDashboard() {
         lat: '',
         lng: ''
       });
+      setImages([]);
       fetchListings();
       setCurrentView('listings');
     } catch (error) {
@@ -315,6 +347,11 @@ export default function DonorDashboard() {
                       rows="4"
                       placeholder="Describe the food, preparation method, ingredients, etc."
                     />
+                  </div>
+
+                  <div>
+                    <label className="label">Food Images (Optional)</label>
+                    <ImageUpload images={images} onChange={setImages} maxImages={5} />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

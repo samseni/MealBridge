@@ -1,4 +1,6 @@
 const pool = require('../config/db');
+const fs = require('fs').promises;
+const path = require('path');
 
 exports.createListing = async (req, res, next) => {
   const client = await pool.connect();
@@ -15,7 +17,8 @@ exports.createListing = async (req, res, next) => {
       pickup_end,
       lat,
       lng,
-      address
+      address,
+      image_urls
     } = req.body;
 
     if (!title || !servings || !pickup_start || !pickup_end || !lat || !lng || !address) {
@@ -31,8 +34,8 @@ exports.createListing = async (req, res, next) => {
     const listingQuery = `
       INSERT INTO food_listings (
         donor_id, title, description, category, is_veg, is_halal, servings,
-        prepared_at, expires_at, pickup_start, pickup_end, location, address
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})'), $12)
+        prepared_at, expires_at, pickup_start, pickup_end, location, address, image_urls
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})'), $12, $13)
       RETURNING *
     `;
 
@@ -48,7 +51,8 @@ exports.createListing = async (req, res, next) => {
       expires_at,
       pickup_start,
       pickup_end,
-      address
+      address,
+      image_urls || []
     ]);
 
     const listing = listingResult.rows[0];
@@ -245,6 +249,50 @@ exports.deleteListing = async (req, res, next) => {
 
     res.json({ message: 'Listing cancelled successfully' });
   } catch (error) {
+    next(error);
+  }
+};
+
+exports.uploadImages = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No images provided' });
+    }
+
+    // Generate image URLs
+    const imageUrls = req.files.map(file => `/uploads/listings/${file.filename}`);
+
+    res.json({
+      message: 'Images uploaded successfully',
+      image_urls: imageUrls
+    });
+  } catch (error) {
+    // Clean up uploaded files if error occurs
+    if (req.files) {
+      for (const file of req.files) {
+        await fs.unlink(file.path).catch(() => {});
+      }
+    }
+    next(error);
+  }
+};
+
+exports.deleteImage = async (req, res, next) => {
+  try {
+    const { filename } = req.params;
+    const filePath = path.join(__dirname, '../../uploads/listings', filename);
+
+    // Check if file exists
+    await fs.access(filePath);
+
+    // Delete the file
+    await fs.unlink(filePath);
+
+    res.json({ message: 'Image deleted successfully' });
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return res.status(404).json({ message: 'Image not found' });
+    }
     next(error);
   }
 };
