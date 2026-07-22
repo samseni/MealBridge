@@ -9,6 +9,7 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState('profile'); // profile, security, settings
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [profileData, setProfileData] = useState({
@@ -91,17 +92,15 @@ export default function Profile() {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      return;
-    }
-
+  const confirmDeleteAccount = async () => {
     try {
       await axios.delete('/auth/account');
       showToast.success('Account deleted successfully');
+      setShowDeleteModal(false);
       logout();
     } catch (error) {
       showToast.error(error.response?.data?.message || 'Failed to delete account');
+      setShowDeleteModal(false);
     }
   };
 
@@ -388,7 +387,7 @@ export default function Profile() {
                     Once you delete your account, there is no going back. Please be certain.
                   </p>
                   <button
-                    onClick={handleDeleteAccount}
+                    onClick={() => setShowDeleteModal(true)}
                     className="btn bg-red-600 text-white hover:bg-red-700"
                   >
                     🗑️ Delete Account
@@ -456,7 +455,7 @@ export default function Profile() {
 
                   <div className="pt-4 border-t">
                     <button className="btn btn-primary">
-                      💾 Save Preferences
+                      Save Preferences
                     </button>
                   </div>
                 </div>
@@ -536,6 +535,37 @@ export default function Profile() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Account Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete Account"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            Are you sure you want to delete your account? This action cannot be undone.
+          </p>
+          <p className="text-sm text-red-600 font-semibold">
+            All your data including listings, claims, and ratings will be permanently removed.
+          </p>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              className="btn btn-ghost flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteAccount}
+              className="btn bg-red-600 text-white hover:bg-red-700 flex-1"
+            >
+              🗑️ Delete Account
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -246,7 +246,7 @@ exports.deleteAccount = async (req, res, next) => {
     await client.query('DELETE FROM claims WHERE ngo_id = $1', [req.user.id]);
 
     // Delete user's ratings
-    await client.query('DELETE FROM ratings WHERE rated_by = $1 OR rated_user = $1', [req.user.id]);
+    await client.query('DELETE FROM ratings WHERE rater_id = $1 OR ratee_id = $1', [req.user.id]);
 
     // Delete user's notifications
     await client.query('DELETE FROM notifications WHERE user_id = $1', [req.user.id]);
