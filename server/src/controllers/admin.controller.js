@@ -58,13 +58,24 @@ exports.getStats = async (req, res, next) => {
         (SELECT COUNT(*) FROM users WHERE role = 'donor') as total_donors,
         (SELECT COUNT(*) FROM users WHERE role = 'ngo' AND verification = 'approved') as verified_ngos,
         (SELECT COUNT(*) FROM food_listings) as total_listings,
+        (SELECT COUNT(*) FROM food_listings WHERE status = 'available') as active_listings,
         (SELECT COUNT(*) FROM claims WHERE completed_at IS NOT NULL) as completed_claims,
         (SELECT COALESCE(SUM(servings), 0) FROM food_listings WHERE status = 'completed') as total_meals_saved
     `;
 
     const result = await pool.query(statsQuery);
 
-    res.json({ stats: result.rows[0] });
+    // Convert string counts to integers
+    const stats = {
+      total_donors: parseInt(result.rows[0].total_donors) || 0,
+      verified_ngos: parseInt(result.rows[0].verified_ngos) || 0,
+      total_listings: parseInt(result.rows[0].total_listings) || 0,
+      active_listings: parseInt(result.rows[0].active_listings) || 0,
+      completed_claims: parseInt(result.rows[0].completed_claims) || 0,
+      total_meals_saved: parseInt(result.rows[0].total_meals_saved) || 0,
+    };
+
+    res.json({ stats });
   } catch (error) {
     next(error);
   }

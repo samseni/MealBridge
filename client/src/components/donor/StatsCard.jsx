@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 
-export default function StatsCard({ title, value, icon, color = 'primary', subtitle, trend }) {
+export default function StatsCard({ title, value, icon, color = 'primary', subtitle, trend, onClick }) {
   const cardClasses = {
     primary: 'border-l-4 border-primary-500 bg-gradient-to-r from-primary-50 to-white',
     green: 'border-l-4 border-green-500 bg-gradient-to-r from-green-50 to-white',
@@ -26,7 +26,10 @@ export default function StatsCard({ title, value, icon, color = 'primary', subti
   };
 
   return (
-    <div className={`card card-hover-lift overflow-hidden ${cardClasses[color]}`}>
+    <div
+      className={`card card-hover-lift overflow-hidden ${cardClasses[color]} ${onClick ? 'cursor-pointer hover:shadow-xl' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wide">{title}</p>
@@ -61,4 +64,5 @@ StatsCard.propTypes = {
     direction: PropTypes.oneOf(['up', 'down', 'neutral']).isRequired,
     value: PropTypes.string.isRequired,
   }),
+  onClick: PropTypes.func,
 };
