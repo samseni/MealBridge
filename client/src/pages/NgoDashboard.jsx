@@ -36,8 +36,12 @@ export default function NgoDashboard() {
 
   const fetchNearbyListings = async () => {
     try {
-      // For demo, using fixed coordinates. In production, get user's location
-      const response = await listingsAPI.getNearby(28.6139, 77.2090, 10000);
+      // Use NGO's location if available, otherwise use a large radius to show all listings
+      const lat = user?.lat || 28.6139;
+      const lng = user?.lng || 77.2090;
+      const radius = user?.lat ? 10000 : 1000000; // 10km if user has location, 1000km otherwise
+
+      const response = await listingsAPI.getNearby(lat, lng, radius);
       setListings(response.data.listings);
     } catch (error) {
       console.error('Failed to fetch listings:', error);
