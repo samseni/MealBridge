@@ -5,12 +5,14 @@ import { useSocket } from '../context/SocketContext';
 import StatsCard from '../components/donor/StatsCard';
 import { showToast } from '../components/common/ToastProvider';
 import ImageUpload from '../components/common/ImageUpload';
+import Analytics from '../components/common/Analytics';
+import DonorHistory from '../components/donor/DonorHistory';
 import axios from 'axios';
 
 export default function DonorDashboard() {
   const { user, logout } = useAuth();
   const [listings, setListings] = useState([]);
-  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, create, listings
+  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, create, listings, analytics, history
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -215,6 +217,20 @@ export default function DonorDashboard() {
             <span className="text-xl">📋</span>
             <span>My Listings</span>
           </button>
+          <button
+            onClick={() => setCurrentView('analytics')}
+            className={`sidebar-link w-full ${currentView === 'analytics' ? 'sidebar-link-active' : ''}`}
+          >
+            <span className="text-xl">📊</span>
+            <span>Analytics</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('history')}
+            className={`sidebar-link w-full ${currentView === 'history' ? 'sidebar-link-active' : ''}`}
+          >
+            <span className="text-xl">📜</span>
+            <span>History</span>
+          </button>
           <a href="/profile" className="sidebar-link w-full">
             <span className="text-xl">⚙️</span>
             <span>Settings</span>
@@ -246,11 +262,15 @@ export default function DonorDashboard() {
               {currentView === 'dashboard' && 'Dashboard Overview'}
               {currentView === 'create' && 'Create New Listing'}
               {currentView === 'listings' && 'My Listings'}
+              {currentView === 'analytics' && 'Analytics & Insights'}
+              {currentView === 'history' && 'Donation History'}
             </h2>
             <p className="text-gray-600 mt-1">
               {currentView === 'dashboard' && 'Welcome back! Here\'s your impact summary'}
               {currentView === 'create' && 'Share your surplus food with those in need'}
               {currentView === 'listings' && 'Manage all your food donation listings'}
+              {currentView === 'analytics' && 'Track your donation impact and trends'}
+              {currentView === 'history' && 'View your complete donation history'}
             </p>
           </div>
         </header>
@@ -309,7 +329,10 @@ export default function DonorDashboard() {
                     <span className="text-xl">📋</span>
                     <span>View All Listings</span>
                   </button>
-                  <button className="btn btn-ghost justify-start">
+                  <button
+                    onClick={() => setCurrentView('analytics')}
+                    className="btn btn-ghost justify-start"
+                  >
                     <span className="text-xl">📊</span>
                     <span>View Analytics</span>
                   </button>
@@ -599,6 +622,12 @@ export default function DonorDashboard() {
               </div>
             </>
           )}
+
+          {/* Analytics View */}
+          {currentView === 'analytics' && <Analytics />}
+
+          {/* History View */}
+          {currentView === 'history' && <DonorHistory />}
         </div>
       </main>
     </div>

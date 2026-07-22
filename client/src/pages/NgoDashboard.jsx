@@ -7,12 +7,15 @@ import StatsCard from '../components/donor/StatsCard';
 import { showToast } from '../components/common/ToastProvider';
 import Modal from '../components/common/Modal';
 import FilterPanel from '../components/common/FilterPanel';
+import Analytics from '../components/common/Analytics';
+import NgoHistory from '../components/ngo/NgoHistory';
+import MapView from '../components/common/MapView';
 
 export default function NgoDashboard() {
   const { user, logout } = useAuth();
   const [listings, setListings] = useState([]);
   const [myClaims, setMyClaims] = useState([]);
-  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, find, claims
+  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, find, claims, map, analytics, history
   const [searchQuery, setSearchQuery] = useState('');
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimingListingId, setClaimingListingId] = useState(null);
@@ -325,11 +328,25 @@ export default function NgoDashboard() {
             )}
           </button>
           <button
-            onClick={() => setCurrentView('impact')}
-            className={`sidebar-link w-full ${currentView === 'impact' ? 'sidebar-link-active' : ''}`}
+            onClick={() => setCurrentView('map')}
+            className={`sidebar-link w-full ${currentView === 'map' ? 'sidebar-link-active' : ''}`}
           >
-            <span className="text-xl">🌱</span>
-            <span>Impact</span>
+            <span className="text-xl">🗺️</span>
+            <span>Map View</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('analytics')}
+            className={`sidebar-link w-full ${currentView === 'analytics' ? 'sidebar-link-active' : ''}`}
+          >
+            <span className="text-xl">📊</span>
+            <span>Analytics</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('history')}
+            className={`sidebar-link w-full ${currentView === 'history' ? 'sidebar-link-active' : ''}`}
+          >
+            <span className="text-xl">📜</span>
+            <span>History</span>
           </button>
           <a href="/profile" className="sidebar-link w-full">
             <span className="text-xl">⚙️</span>
@@ -362,13 +379,17 @@ export default function NgoDashboard() {
               {currentView === 'dashboard' && 'Dashboard Overview'}
               {currentView === 'find' && 'Find Available Food'}
               {currentView === 'claims' && 'My Claims'}
-              {currentView === 'impact' && 'Impact Report'}
+              {currentView === 'map' && 'Food Map View'}
+              {currentView === 'analytics' && 'Analytics & Insights'}
+              {currentView === 'history' && 'Claim History'}
             </h2>
             <p className="text-gray-600 mt-1">
               {currentView === 'dashboard' && 'Track your food rescue activities'}
               {currentView === 'find' && 'Browse and claim available food donations'}
               {currentView === 'claims' && 'Manage your active and completed claims'}
-              {currentView === 'impact' && 'View your organization\'s impact'}
+              {currentView === 'map' && 'Visualize nearby food donations on the map'}
+              {currentView === 'analytics' && 'Track your rescue impact and trends'}
+              {currentView === 'history' && 'View your complete claim history'}
             </p>
           </div>
         </header>
@@ -674,45 +695,22 @@ export default function NgoDashboard() {
             </>
           )}
 
-          {/* Impact View */}
-          {currentView === 'impact' && (
-            <div className="max-w-4xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <StatsCard
-                  title="Total Meals Rescued"
-                  value={stats.totalServings}
-                  icon="🍽️"
-                  color="green"
-                  subtitle="Servings collected"
-                />
-                <StatsCard
-                  title="Completed Claims"
-                  value={stats.completedClaims}
-                  icon="✅"
-                  color="blue"
-                  subtitle="Successful pickups"
-                />
-              </div>
-
-              <div className="card">
-                <h3 className="text-lg font-semibold mb-4">Your Impact</h3>
-                <div className="space-y-4">
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-700">{stats.totalServings} meals</p>
-                    <p className="text-sm text-green-600">rescued from going to waste</p>
-                  </div>
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-700">{Math.round(stats.totalServings * 0.5)} kg</p>
-                    <p className="text-sm text-blue-600">of food waste prevented</p>
-                  </div>
-                  <div className="p-4 bg-purple-50 rounded-lg">
-                    <p className="text-2xl font-bold text-purple-700">{Math.round(stats.totalServings * 2.5)} kg CO₂</p>
-                    <p className="text-sm text-purple-600">emissions avoided</p>
-                  </div>
-                </div>
-              </div>
+          {/* Map View */}
+          {currentView === 'map' && (
+            <div className="h-[calc(100vh-180px)]">
+              <MapView
+                listings={listings.map(l => ({ ...l, lat: parseFloat(l.lat), lng: parseFloat(l.lng) }))}
+                userLocation={user?.location ? [user.location.coordinates[1], user.location.coordinates[0]] : null}
+                onListingClick={handleClaim}
+              />
             </div>
           )}
+
+          {/* Analytics View */}
+          {currentView === 'analytics' && <Analytics />}
+
+          {/* History View */}
+          {currentView === 'history' && <NgoHistory />}
         </div>
       </main>
 
