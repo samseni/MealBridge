@@ -23,11 +23,11 @@ export default function DonorDashboard() {
     is_veg: true,
     pickup_start: '',
     pickup_end: '',
-    address: '',
-    lat: '',
-    lng: ''
+    address: ''
   });
   const [images, setImages] = useState([]);
+  const [location, setLocation] = useState({ lat: null, lng: null });
+  const [locationError, setLocationError] = useState('');
 
   useEffect(() => {
     fetchListings();
@@ -55,8 +55,42 @@ export default function DonorDashboard() {
     }
   };
 
+  const getCurrentLocation = () => {
+    setLocationError('');
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser');
+      return;
+    }
+
+    showToast.info('Getting your location...');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+        showToast.success('Location obtained successfully!');
+      },
+      (error) => {
+        let errorMsg = 'Unable to get your location';
+        if (error.code === 1) errorMsg = 'Location permission denied';
+        else if (error.code === 2) errorMsg = 'Location unavailable';
+        else if (error.code === 3) errorMsg = 'Location request timeout';
+        setLocationError(errorMsg);
+        showToast.error(errorMsg);
+      }
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate location
+    if (!location.lat || !location.lng) {
+      showToast.error('Please get your current location first');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -86,12 +120,12 @@ export default function DonorDashboard() {
         imageUrls = uploadResponse.data.image_urls;
       }
 
-      // Create listing with image URLs
+      // Create listing with image URLs and location
       await listingsAPI.create({
         ...formData,
         servings: parseInt(formData.servings),
-        lat: parseFloat(formData.lat),
-        lng: parseFloat(formData.lng),
+        lat: location.lat,
+        lng: location.lng,
         image_urls: imageUrls
       });
 
@@ -105,11 +139,11 @@ export default function DonorDashboard() {
         is_veg: true,
         pickup_start: '',
         pickup_end: '',
-        address: '',
-        lat: '',
-        lng: ''
+        address: ''
       });
       setImages([]);
+      setLocation({ lat: null, lng: null });
+      setLocationError('');
       fetchListings();
       setCurrentView('listings');
     } catch (error) {
@@ -416,30 +450,31 @@ export default function DonorDashboard() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="label">Latitude *</label>
-                      <input
-                        type="number"
-                        step="0.000001"
-                        value={formData.lat}
-                        onChange={(e) => setFormData({ ...formData, lat: e.target.value })}
-                        className="input"
-                        placeholder="e.g., 12.9716"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Longitude *</label>
-                      <input
-                        type="number"
-                        step="0.000001"
-                        value={formData.lng}
-                        onChange={(e) => setFormData({ ...formData, lng: e.target.value })}
-                        className="input"
-                        placeholder="e.g., 77.5946"
-                        required
-                      />
+                  <div>
+                    <label className="label">Pickup Location *</label>
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={getCurrentLocation}
+                        className={`btn w-full ${location.lat ? 'btn-outline' : 'btn-primary'}`}
+                      >
+                        {location.lat ? '✅ Location Obtained' : '📍 Get My Current Location'}
+                      </button>
+                      {location.lat && location.lng && (
+                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-sm text-green-700">
+                            📍 Location: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                          </p>
+                        </div>
+                      )}
+                      {locationError && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-sm text-red-700">{locationError}</p>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500">
+                        We'll use your current location to show this listing to nearby NGOs
+                      </p>
                     </div>
                   </div>
 
