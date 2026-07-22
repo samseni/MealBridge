@@ -139,7 +139,7 @@ exports.getProfile = async (req, res, next) => {
 
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, phone, address, lat, lng } = req.body;
+    const { name, phone, address, org_name, lat, lng } = req.body;
     const updates = [];
     const values = [];
     let paramCount = 1;
@@ -148,13 +148,17 @@ exports.updateProfile = async (req, res, next) => {
       updates.push(`name = $${paramCount++}`);
       values.push(name);
     }
-    if (phone) {
+    if (phone !== undefined) {
       updates.push(`phone = $${paramCount++}`);
       values.push(phone);
     }
-    if (address) {
+    if (address !== undefined) {
       updates.push(`address = $${paramCount++}`);
       values.push(address);
+    }
+    if (org_name !== undefined && req.user.role === 'ngo') {
+      updates.push(`org_name = $${paramCount++}`);
+      values.push(org_name);
     }
     if (lat && lng) {
       updates.push(`location = ST_GeogFromText('SRID=4326;POINT(' || $${paramCount++} || ' ' || $${paramCount++} || ')')`);
@@ -171,7 +175,7 @@ exports.updateProfile = async (req, res, next) => {
       UPDATE users
       SET ${updates.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, name, email, role, org_name, phone, address, verification, avg_rating, updated_at
+      RETURNING id, name, email, role, org_name, phone, address, verification, avg_rating, created_at, updated_at
     `;
 
     const result = await pool.query(query, values);
@@ -182,5 +186,81 @@ exports.updateProfile = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+
+    // Get current password hash
+    const userResult = await pool.query(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await pool.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [newPasswordHash, req.user.id]
+    );
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteAccount = async (req, res, next) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Delete user's listings
+    await client.query('DELETE FROM food_listings WHERE donor_id = $1', [req.user.id]);
+
+    // Delete user's claims
+    await client.query('DELETE FROM claims WHERE ngo_id = $1', [req.user.id]);
+
+    // Delete user's ratings
+    await client.query('DELETE FROM ratings WHERE rated_by = $1 OR rated_user = $1', [req.user.id]);
+
+    // Delete user's notifications
+    await client.query('DELETE FROM notifications WHERE user_id = $1', [req.user.id]);
+
+    // Delete user account
+    await client.query('DELETE FROM users WHERE id = $1', [req.user.id]);
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
   }
 };

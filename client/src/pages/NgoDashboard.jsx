@@ -331,6 +331,10 @@ export default function NgoDashboard() {
             <span className="text-xl">🌱</span>
             <span>Impact</span>
           </button>
+          <a href="/profile" className="sidebar-link w-full">
+            <span className="text-xl">⚙️</span>
+            <span>Settings</span>
+          </a>
         </nav>
 
         <div className="absolute bottom-0 w-64 p-4 border-t">
