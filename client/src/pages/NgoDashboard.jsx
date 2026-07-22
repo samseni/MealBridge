@@ -5,6 +5,7 @@ import axios from '../api/axios';
 import { useSocket } from '../context/SocketContext';
 import StatsCard from '../components/donor/StatsCard';
 import { showToast } from '../components/common/ToastProvider';
+import Modal from '../components/common/Modal';
 
 export default function NgoDashboard() {
   const { user, logout } = useAuth();
@@ -12,6 +13,8 @@ export default function NgoDashboard() {
   const [myClaims, setMyClaims] = useState([]);
   const [currentView, setCurrentView] = useState('dashboard'); // dashboard, find, claims
   const [searchQuery, setSearchQuery] = useState('');
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claimingListingId, setClaimingListingId] = useState(null);
   const socket = useSocket();
 
   useEffect(() => {
@@ -36,12 +39,12 @@ export default function NgoDashboard() {
 
   const fetchNearbyListings = async () => {
     try {
-      // Use NGO's location if available, otherwise use a large radius to show all listings
-      const lat = user?.lat || 28.6139;
-      const lng = user?.lng || 77.2090;
-      const radius = user?.lat ? 10000 : 1000000; // 10km if user has location, 1000km otherwise
+      // Fetch ALL available listings without distance limit
+      // If NGO has location, distance will be calculated for sorting
+      const lat = user?.location ? user.location.coordinates[1] : null;
+      const lng = user?.location ? user.location.coordinates[0] : null;
 
-      const response = await listingsAPI.getNearby(lat, lng, radius);
+      const response = await listingsAPI.getAll(lat, lng);
       setListings(response.data.listings);
     } catch (error) {
       console.error('Failed to fetch listings:', error);
@@ -57,16 +60,23 @@ export default function NgoDashboard() {
     }
   };
 
-  const handleClaim = async (listingId) => {
-    if (!window.confirm('Are you sure you want to claim this listing?')) return;
+  const handleClaim = (listingId) => {
+    setClaimingListingId(listingId);
+    setShowClaimModal(true);
+  };
 
+  const confirmClaim = async () => {
     try {
-      await axios.post(`/claims/${listingId}`);
+      await axios.post(`/claims/${claimingListingId}`);
       showToast.success('Listing claimed successfully!');
+      setShowClaimModal(false);
+      setClaimingListingId(null);
       fetchNearbyListings();
       fetchMyClaims();
     } catch (error) {
       showToast.error(error.response?.data?.message || 'Failed to claim listing');
+      setShowClaimModal(false);
+      setClaimingListingId(null);
     }
   };
 
@@ -593,6 +603,39 @@ export default function NgoDashboard() {
           )}
         </div>
       </main>
+
+      {/* Claim Confirmation Modal */}
+      <Modal
+        isOpen={showClaimModal}
+        onClose={() => {
+          setShowClaimModal(false);
+          setClaimingListingId(null);
+        }}
+        title="Claim Food Listing"
+        footer={
+          <>
+            <button
+              onClick={() => {
+                setShowClaimModal(false);
+                setClaimingListingId(null);
+              }}
+              className="btn btn-ghost"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmClaim}
+              className="btn btn-primary"
+            >
+              Confirm Claim
+            </button>
+          </>
+        }
+      >
+        <p className="text-gray-700">
+          Are you sure you want to claim this food listing? Once claimed, you'll be responsible for picking it up during the specified time window.
+        </p>
+      </Modal>
     </div>
   );
 }

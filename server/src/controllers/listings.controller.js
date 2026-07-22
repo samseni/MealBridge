@@ -137,6 +137,42 @@ exports.getNearbyListings = async (req, res, next) => {
   }
 };
 
+exports.getAllListings = async (req, res, next) => {
+  try {
+    const { lat, lng } = req.query;
+
+    // If lat/lng provided, calculate distance; otherwise just return all listings
+    let query;
+    if (lat && lng) {
+      query = `
+        SELECT l.*, u.name as donor_name, u.phone as donor_phone,
+               ST_Distance(l.location, ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})')) as distance
+        FROM food_listings l
+        JOIN users u ON l.donor_id = u.id
+        WHERE l.status = 'available'
+          AND l.expires_at > NOW()
+        ORDER BY distance ASC
+      `;
+    } else {
+      query = `
+        SELECT l.*, u.name as donor_name, u.phone as donor_phone,
+               0 as distance
+        FROM food_listings l
+        JOIN users u ON l.donor_id = u.id
+        WHERE l.status = 'available'
+          AND l.expires_at > NOW()
+        ORDER BY l.created_at DESC
+      `;
+    }
+
+    const result = await pool.query(query);
+
+    res.json({ listings: result.rows });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getMyListings = async (req, res, next) => {
   try {
     const { status } = req.query;
