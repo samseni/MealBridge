@@ -17,6 +17,7 @@ export default function AdminDashboard() {
   const [allUsers, setAllUsers] = useState([]);
   const [currentView, setCurrentView] = useState('dashboard'); // dashboard, verifications, stats, users
   const [userFilter, setUserFilter] = useState('all'); // all, donor, ngo, admin
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchVerifications();
@@ -94,9 +95,15 @@ export default function AdminDashboard() {
     }
   };
 
-  const filteredUsers = userFilter === 'all'
-    ? allUsers
-    : allUsers.filter(u => u.role === userFilter);
+  const filteredUsers = allUsers
+    .filter(u => userFilter === 'all' || u.role === userFilter)
+    .filter(u =>
+      !searchQuery ||
+      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.org_name && u.org_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      u.role.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -550,6 +557,22 @@ export default function AdminDashboard() {
           {/* Users View */}
           {currentView === 'users' && (
             <div className="space-y-6">
+              {/* Search Bar */}
+              <div className="mb-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, organization, or role..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="input pl-12"
+                  />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl">
+                    🔍
+                  </span>
+                </div>
+              </div>
+
               {/* Filter Tabs */}
               <div className="flex gap-2">
                 {['all', 'donor', 'ngo', 'admin'].map((filter) => (

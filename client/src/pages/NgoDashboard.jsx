@@ -6,6 +6,7 @@ import { useSocket } from '../context/SocketContext';
 import StatsCard from '../components/donor/StatsCard';
 import { showToast } from '../components/common/ToastProvider';
 import Modal from '../components/common/Modal';
+import FilterPanel from '../components/common/FilterPanel';
 
 export default function NgoDashboard() {
   const { user, logout } = useAuth();
@@ -15,6 +16,14 @@ export default function NgoDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimingListingId, setClaimingListingId] = useState(null);
+  const [filters, setFilters] = useState({
+    category: 'all',
+    dietary: 'all',
+    minServings: '',
+    maxDistance: '',
+    sortBy: 'distance',
+    availability: 'all'
+  });
   const socket = useSocket();
 
   useEffect(() => {
@@ -189,12 +198,95 @@ export default function NgoDashboard() {
     availableListings: listings.length,
   };
 
-  // Filter listings based on search
-  const filteredListings = listings.filter(listing =>
-    listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    listing.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    listing.donor_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Advanced filtering and sorting
+  const filteredListings = listings
+    .filter(listing => {
+      // Text search
+      const searchMatch = !searchQuery ||
+        listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        listing.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        listing.donor_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        listing.address.toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (!searchMatch) return false;
+
+      // Category filter
+      if (filters.category !== 'all' && listing.category !== filters.category) {
+        return false;
+      }
+
+      // Dietary filter
+      if (filters.dietary === 'veg' && !listing.is_veg) return false;
+      if (filters.dietary === 'nonveg' && listing.is_veg) return false;
+      if (filters.dietary === 'halal' && !listing.is_halal) return false;
+
+      // Min servings filter
+      if (filters.minServings && listing.servings < parseInt(filters.minServings)) {
+        return false;
+      }
+
+      // Max distance filter (convert km to meters)
+      if (filters.maxDistance && listing.distance > parseFloat(filters.maxDistance) * 1000) {
+        return false;
+      }
+
+      // Availability filter
+      if (filters.availability !== 'all') {
+        const now = new Date();
+        const pickupStart = new Date(listing.pickup_start);
+        const expiresAt = new Date(listing.expires_at);
+
+        if (filters.availability === 'today') {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          if (pickupStart < today || pickupStart >= tomorrow) return false;
+        } else if (filters.availability === 'tomorrow') {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(0, 0, 0, 0);
+          const dayAfter = new Date(tomorrow);
+          dayAfter.setDate(dayAfter.getDate() + 1);
+          if (pickupStart < tomorrow || pickupStart >= dayAfter) return false;
+        } else if (filters.availability === 'urgent') {
+          const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+          if (expiresAt > twoHoursLater) return false;
+        }
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      // Apply sorting
+      switch (filters.sortBy) {
+        case 'distance':
+          return a.distance - b.distance;
+        case 'servings_desc':
+          return b.servings - a.servings;
+        case 'servings_asc':
+          return a.servings - b.servings;
+        case 'created_desc':
+          return new Date(b.created_at) - new Date(a.created_at);
+        case 'created_asc':
+          return new Date(a.created_at) - new Date(b.created_at);
+        case 'expires_soon':
+          return new Date(a.expires_at) - new Date(b.expires_at);
+        default:
+          return a.distance - b.distance;
+      }
+    });
+
+  const handleResetFilters = () => {
+    setFilters({
+      category: 'all',
+      dietary: 'all',
+      minServings: '',
+      maxDistance: '',
+      sortBy: 'distance',
+      availability: 'all'
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -420,7 +512,7 @@ export default function NgoDashboard() {
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Search by title, category, or donor..."
+                    placeholder="Search by title, category, donor, or address..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="input pl-12"
@@ -429,6 +521,22 @@ export default function NgoDashboard() {
                     🔍
                   </span>
                 </div>
+              </div>
+
+              {/* Filter Panel */}
+              <FilterPanel
+                filters={filters}
+                onChange={setFilters}
+                onReset={handleResetFilters}
+              />
+
+              {/* Results Summary */}
+              <div className="mb-4 flex justify-between items-center">
+                <p className="text-sm text-gray-600">
+                  {filteredListings.length === 0
+                    ? 'No listings found'
+                    : `Showing ${filteredListings.length} of ${listings.length} listings`}
+                </p>
               </div>
 
               {/* Listings Grid */}

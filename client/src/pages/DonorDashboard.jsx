@@ -13,6 +13,7 @@ export default function DonorDashboard() {
   const [currentView, setCurrentView] = useState('dashboard'); // dashboard, create, listings
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const socket = useSocket();
 
   const [formData, setFormData] = useState({
@@ -173,6 +174,15 @@ export default function DonorDashboard() {
     completed: listings.filter(l => l.status === 'completed').length,
     totalServings: listings.reduce((sum, l) => sum + (l.servings || 0), 0),
   };
+
+  // Filter listings for search
+  const filteredListings = listings.filter(listing =>
+    !searchQuery ||
+    listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    listing.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    listing.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (listing.description && listing.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -498,6 +508,22 @@ export default function DonorDashboard() {
           {/* My Listings View */}
           {currentView === 'listings' && (
             <>
+              {/* Search Bar */}
+              <div className="mb-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search by title, category, status, or description..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="input pl-12"
+                  />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl">
+                    🔍
+                  </span>
+                </div>
+              </div>
+
               <div className="flex justify-between items-center mb-6">
                 <div className="flex gap-2">
                   <button className="btn btn-sm btn-primary">All ({stats.total})</button>
@@ -514,7 +540,7 @@ export default function DonorDashboard() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {listings.length === 0 ? (
+                {filteredListings.length === 0 ? (
                   <div className="col-span-full text-center py-16">
                     <div className="text-6xl mb-4">📦</div>
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">No listings yet</h3>
@@ -527,7 +553,7 @@ export default function DonorDashboard() {
                     </button>
                   </div>
                 ) : (
-                  listings.map((listing) => (
+                  filteredListings.map((listing) => (
                     <div key={listing.id} className="card">
                       <div className="flex justify-between items-start mb-3">
                         <h3 className="font-semibold text-lg text-gray-900">{listing.title}</h3>
