@@ -204,15 +204,25 @@ exports.getAllListings = async (req, res, next) => {
 exports.getMyListings = async (req, res, next) => {
   try {
     const { status } = req.query;
-    let query = 'SELECT * FROM food_listings WHERE donor_id = $1';
+    let query = `
+      SELECT l.*,
+             c.id as claim_id, c.claimed_at, c.picked_up_at, c.completed_at, c.cancelled_at,
+             u.name as ngo_name, u.org_name as ngo_org_name, u.phone as ngo_phone,
+             r.score as rating_score, r.comment as rating_comment
+      FROM food_listings l
+      LEFT JOIN claims c ON l.id = c.listing_id
+      LEFT JOIN users u ON c.ngo_id = u.id
+      LEFT JOIN ratings r ON c.id = r.claim_id AND r.ratee_id = $1
+      WHERE l.donor_id = $1
+    `;
     const params = [req.user.id];
 
     if (status) {
-      query += ' AND status = $2';
+      query += ' AND l.status = $2';
       params.push(status);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY l.created_at DESC';
 
     const result = await pool.query(query, params);
 

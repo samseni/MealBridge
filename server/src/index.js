@@ -12,6 +12,7 @@ const listingsRoutes = require('./routes/listings.routes');
 const claimsRoutes = require('./routes/claims.routes');
 const ratingsRoutes = require('./routes/ratings.routes');
 const adminRoutes = require('./routes/admin.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -101,6 +102,7 @@ app.use('/api/listings', listingsRoutes);
 app.use('/api/claims', claimsRoutes);
 app.use('/api/ratings', ratingsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Error handling
 app.use(errorHandler);

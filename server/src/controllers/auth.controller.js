@@ -24,15 +24,19 @@ exports.register = async (req, res, next) => {
     // Hash password
     const password_hash = await bcrypt.hash(password, 10);
 
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 86400000); // 24 hours
+
     // Build query based on provided fields
     let query;
     let params;
 
     if (lat && lng) {
       query = `
-        INSERT INTO users (name, email, password_hash, role, org_name, phone, address, location)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, ST_GeogFromText('SRID=4326;POINT(' || $8 || ' ' || $9 || ')'))
-        RETURNING id, name, email, role, org_name, phone, verification, created_at
+        INSERT INTO users (name, email, password_hash, role, org_name, phone, address, location, email_verified, verification_token, verification_token_expires)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, ST_GeogFromText('SRID=4326;POINT(' || $8 || ' ' || $9 || ')'), FALSE, $10, $11)
+        RETURNING id, name, email, role, org_name, phone, verification, email_verified, created_at
       `;
       params = [
         name,
@@ -43,13 +47,15 @@ exports.register = async (req, res, next) => {
         phone || null,
         address || null,
         lng,
-        lat
+        lat,
+        verificationToken,
+        verificationExpiry
       ];
     } else {
       query = `
-        INSERT INTO users (name, email, password_hash, role, org_name, phone, address, location)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
-        RETURNING id, name, email, role, org_name, phone, verification, created_at
+        INSERT INTO users (name, email, password_hash, role, org_name, phone, address, location, email_verified, verification_token, verification_token_expires)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, FALSE, $8, $9)
+        RETURNING id, name, email, role, org_name, phone, verification, email_verified, created_at
       `;
       params = [
         name,
@@ -58,7 +64,9 @@ exports.register = async (req, res, next) => {
         role,
         org_name || null,
         phone || null,
-        address || null
+        address || null,
+        verificationToken,
+        verificationExpiry
       ];
     }
 
@@ -67,10 +75,15 @@ exports.register = async (req, res, next) => {
     const user = result.rows[0];
     const token = generateToken(user);
 
+    // Send verification email
+    emailService.sendEmailVerification(email, verificationToken, name)
+      .catch(err => console.error('Failed to send verification email:', err.message));
+
     res.status(201).json({
-      message: 'User registered successfully',
+      message: 'User registered successfully. Please check your email to verify your account.',
       user,
-      token
+      token,
+      emailVerificationSent: true
     });
   } catch (error) {
     if (error.code === '23505') {

@@ -104,12 +104,14 @@ exports.createClaim = async (req, res, next) => {
 exports.getMyClaims = async (req, res, next) => {
   try {
     const query = `
-      SELECT c.*, l.title, l.servings, l.address, l.pickup_start, l.pickup_end,
+      SELECT c.*, l.title, l.servings, l.address, l.pickup_start, l.pickup_end, l.status as listing_status,
              u.name as donor_name, u.phone as donor_phone,
-             ST_Y(l.location::geometry) as lat, ST_X(l.location::geometry) as lng
+             ST_Y(l.location::geometry) as lat, ST_X(l.location::geometry) as lng,
+             r.score as rating_score, r.comment as rating_comment
       FROM claims c
       JOIN food_listings l ON c.listing_id = l.id
       JOIN users u ON l.donor_id = u.id
+      LEFT JOIN ratings r ON c.id = r.claim_id AND r.ratee_id = $1
       WHERE c.ngo_id = $1
       ORDER BY c.claimed_at DESC
     `;
