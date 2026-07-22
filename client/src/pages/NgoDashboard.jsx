@@ -17,8 +17,13 @@ export default function NgoDashboard() {
   const [myClaims, setMyClaims] = useState([]);
   const [currentView, setCurrentView] = useState('dashboard'); // dashboard, find, claims, map, analytics, history
   const [searchQuery, setSearchQuery] = useState('');
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [locationSearch, setLocationSearch] = useState('');
+  const [mapCenter, setMapCenter] = useState(null);
+  const [searchingLocation, setSearchingLocation] = useState(false);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimingListingId, setClaimingListingId] = useState(null);
+  const [claimsFilter, setClaimsFilter] = useState('all'); // all, active, completed
   const [filters, setFilters] = useState({
     category: 'all',
     dietary: 'all',
@@ -289,6 +294,33 @@ export default function NgoDashboard() {
       sortBy: 'distance',
       availability: 'all'
     });
+  };
+
+  const searchLocation = async (e) => {
+    e.preventDefault();
+    if (!locationSearch.trim()) return;
+
+    setSearchingLocation(true);
+    try {
+      // Use Nominatim geocoding API (OpenStreetMap)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationSearch)}&limit=1`
+      );
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        setMapCenter([parseFloat(lat), parseFloat(lon)]);
+        showToast.success(`Navigated to: ${display_name}`);
+      } else {
+        showToast.error('Location not found. Try a different search term.');
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      showToast.error('Failed to search location. Please try again.');
+    } finally {
+      setSearchingLocation(false);
+    }
   };
 
   return (
@@ -622,16 +654,38 @@ export default function NgoDashboard() {
           {currentView === 'claims' && (
             <>
               <div className="flex gap-2 mb-6">
-                <button className="btn btn-sm btn-primary">All ({stats.totalClaims})</button>
-                <button className="btn btn-sm btn-ghost">Active ({stats.activeClaims})</button>
-                <button className="btn btn-sm btn-ghost">Completed ({stats.completedClaims})</button>
+                <button
+                  onClick={() => setClaimsFilter('all')}
+                  className={`btn btn-sm ${claimsFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+                >
+                  All ({stats.totalClaims})
+                </button>
+                <button
+                  onClick={() => setClaimsFilter('active')}
+                  className={`btn btn-sm ${claimsFilter === 'active' ? 'btn-primary' : 'btn-ghost'}`}
+                >
+                  Active ({stats.activeClaims})
+                </button>
+                <button
+                  onClick={() => setClaimsFilter('completed')}
+                  className={`btn btn-sm ${claimsFilter === 'completed' ? 'btn-primary' : 'btn-ghost'}`}
+                >
+                  Completed ({stats.completedClaims})
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {myClaims.length === 0 ? (
+                {myClaims.filter(claim => {
+                  if (claimsFilter === 'all') return true;
+                  if (claimsFilter === 'active') return !claim.completed_at;
+                  if (claimsFilter === 'completed') return claim.completed_at;
+                  return true;
+                }).length === 0 ? (
                   <div className="col-span-full text-center py-16">
                     <div className="text-6xl mb-4">📦</div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No claims yet</h3>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      {claimsFilter === 'all' ? 'No claims yet' : `No ${claimsFilter} claims`}
+                    </h3>
                     <p className="text-gray-600 mb-6">Start claiming available food donations</p>
                     <button
                       onClick={() => setCurrentView('find')}
@@ -641,7 +695,12 @@ export default function NgoDashboard() {
                     </button>
                   </div>
                 ) : (
-                  myClaims.map((claim) => (
+                  myClaims.filter(claim => {
+                    if (claimsFilter === 'all') return true;
+                    if (claimsFilter === 'active') return !claim.completed_at;
+                    if (claimsFilter === 'completed') return claim.completed_at;
+                    return true;
+                  }).map((claim) => (
                     <div key={claim.id} className="card">
                       <div className="flex justify-between items-start mb-3">
                         <h3 className="font-semibold text-lg text-gray-900">{claim.title}</h3>
@@ -697,13 +756,39 @@ export default function NgoDashboard() {
 
           {/* Map View */}
           {currentView === 'map' && (
-            <div className="h-[calc(100vh-180px)]">
-              <MapView
-                listings={listings.map(l => ({ ...l, lat: parseFloat(l.lat), lng: parseFloat(l.lng) }))}
-                userLocation={user?.location ? [user.location.coordinates[1], user.location.coordinates[0]] : null}
-                onListingClick={handleClaim}
-              />
-            </div>
+            <>
+              {/* Location Navigation Search */}
+              <div className="mb-4">
+                <form onSubmit={searchLocation} className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search any location (e.g., 'Mumbai', 'India Gate Delhi', 'Connaught Place')"
+                    value={locationSearch}
+                    onChange={(e) => setLocationSearch(e.target.value)}
+                    className="input pl-12 pr-24"
+                  />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl">
+                    📍
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={searchingLocation || !locationSearch.trim()}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-primary btn-sm"
+                  >
+                    {searchingLocation ? '...' : 'Go'}
+                  </button>
+                </form>
+              </div>
+
+              <div className="h-[calc(100vh-260px)]">
+                <MapView
+                  listings={listings.map(l => ({ ...l, lat: parseFloat(l.lat), lng: parseFloat(l.lng) }))}
+                  userLocation={user?.location ? [user.location.coordinates[1], user.location.coordinates[0]] : null}
+                  center={mapCenter}
+                  onListingClick={handleClaim}
+                />
+              </div>
+            </>
           )}
 
           {/* Analytics View */}

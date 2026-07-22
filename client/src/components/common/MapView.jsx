@@ -35,16 +35,16 @@ function MapCenter({ center }) {
   const map = useMap();
   useEffect(() => {
     if (center) {
-      map.setView(center, map.getZoom());
+      map.setView(center, 13); // Zoom level 13 for navigated locations
     }
   }, [center, map]);
   return null;
 }
 
-export default function MapView({ listings, userLocation, onListingClick }) {
-  // Default center (use user location or default to a general location)
-  const defaultCenter = userLocation || [28.6139, 77.2090]; // Default to Delhi, India
-  const zoom = userLocation ? 13 : 10;
+export default function MapView({ listings, userLocation, center, onListingClick }) {
+  // Default center (use custom center, user location, or default to a general location)
+  const defaultCenter = center || userLocation || [28.6139, 77.2090]; // Default to Delhi, India
+  const zoom = center ? 13 : (userLocation ? 13 : 10);
 
   return (
     <div className="w-full h-full min-h-[400px] rounded-lg overflow-hidden shadow-lg">
@@ -59,7 +59,7 @@ export default function MapView({ listings, userLocation, onListingClick }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <MapCenter center={userLocation} />
+        <MapCenter center={center || userLocation} />
 
         {/* User Location Marker */}
         {userLocation && (
