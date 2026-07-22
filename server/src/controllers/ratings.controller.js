@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const emailService = require('../utils/email.service');
 
 exports.createRating = async (req, res, next) => {
   const client = await pool.connect();
@@ -65,10 +66,27 @@ exports.createRating = async (req, res, next) => {
         WHERE ratee_id = $1
       )
       WHERE id = $1
+      RETURNING name, email, email_verified, avg_rating
     `;
-    await client.query(avgQuery, [ratee_id]);
+    const avgResult = await client.query(avgQuery, [ratee_id]);
+    const ratee = avgResult.rows[0];
 
     await client.query('COMMIT');
+
+    // Send email notification to ratee
+    if (ratee.email_verified) {
+      const ratingInfo = {
+        score,
+        comment: comment || '',
+        raterName: req.user.name,
+        newAvgRating: ratee.avg_rating
+      };
+      emailService.sendRatingNotification(
+        ratee.email,
+        ratee.name,
+        ratingInfo
+      ).catch(err => console.error('Failed to send rating email:', err.message));
+    }
 
     res.status(201).json({
       message: 'Rating submitted successfully',

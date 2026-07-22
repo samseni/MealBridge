@@ -1,6 +1,8 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const pool = require('../config/db');
+const emailService = require('../utils/email.service');
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -262,5 +264,180 @@ exports.deleteAccount = async (req, res, next) => {
     next(error);
   } finally {
     client.release();
+  }
+};
+
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Find user by email
+    const userResult = await pool.query(
+      'SELECT id, name, email FROM users WHERE email = $1',
+      [email]
+    );
+
+    // Always return success to prevent email enumeration
+    if (userResult.rows.length === 0) {
+      return res.json({ message: 'If an account exists with that email, a password reset link has been sent.' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+
+    // Delete any existing tokens for this user
+    await pool.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+
+    // Store reset token
+    await pool.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, resetToken, expiresAt]
+    );
+
+    // Send email
+    await emailService.sendPasswordResetEmail(user.email, resetToken, user.name);
+
+    res.json({ message: 'If an account exists with that email, a password reset link has been sent.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'Token and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    // Find valid token
+    const tokenResult = await pool.query(
+      `SELECT prt.*, u.email, u.name
+       FROM password_reset_tokens prt
+       JOIN users u ON prt.user_id = u.id
+       WHERE prt.token = $1 AND prt.used = FALSE AND prt.expires_at > NOW()`,
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    const resetData = tokenResult.rows[0];
+
+    // Hash new password
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password and mark token as used
+    await pool.query('BEGIN');
+
+    await pool.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [newPasswordHash, resetData.user_id]
+    );
+
+    await pool.query(
+      'UPDATE password_reset_tokens SET used = TRUE WHERE id = $1',
+      [resetData.id]
+    );
+
+    await pool.query('COMMIT');
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    next(error);
+  }
+};
+
+exports.verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ message: 'Verification token is required' });
+    }
+
+    // Find user with valid verification token
+    const userResult = await pool.query(
+      `SELECT id, email, name FROM users
+       WHERE verification_token = $1
+       AND verification_token_expires > NOW()
+       AND email_verified = FALSE`,
+      [token]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({ message: 'Invalid or expired verification token' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Update user as verified
+    await pool.query(
+      `UPDATE users
+       SET email_verified = TRUE, verification_token = NULL, verification_token_expires = NULL
+       WHERE id = $1`,
+      [user.id]
+    );
+
+    res.json({ message: 'Email verified successfully', user: { email: user.email, name: user.name } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.resendVerificationEmail = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Find user
+    const userResult = await pool.query(
+      'SELECT id, name, email, email_verified FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.json({ message: 'If an account exists with that email, a verification email has been sent.' });
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.email_verified) {
+      return res.status(400).json({ message: 'Email is already verified' });
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 86400000); // 24 hours
+
+    // Update verification token
+    await pool.query(
+      'UPDATE users SET verification_token = $1, verification_token_expires = $2 WHERE id = $3',
+      [verificationToken, expiresAt, user.id]
+    );
+
+    // Send verification email
+    await emailService.sendEmailVerification(user.email, verificationToken, user.name);
+
+    res.json({ message: 'If an account exists with that email, a verification email has been sent.' });
+  } catch (error) {
+    next(error);
   }
 };

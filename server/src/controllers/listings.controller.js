@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const fs = require('fs').promises;
 const path = require('path');
+const emailService = require('../utils/email.service');
 
 exports.createListing = async (req, res, next) => {
   const client = await pool.connect();
@@ -60,10 +61,11 @@ exports.createListing = async (req, res, next) => {
     // Find nearby verified NGOs
     const radius = process.env.MATCH_RADIUS_METERS || 10000;
     const ngoQuery = `
-      SELECT id, name, org_name, ST_Distance(location, ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})')) as distance
+      SELECT id, name, org_name, email, ST_Distance(location, ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})')) as distance
       FROM users
       WHERE role = 'ngo'
         AND verification = 'approved'
+        AND email_verified = TRUE
         AND ST_DWithin(location, ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})'), $1)
       ORDER BY distance ASC, avg_rating DESC
       LIMIT 50
@@ -93,6 +95,32 @@ exports.createListing = async (req, res, next) => {
           pickup_start
         });
       });
+
+      // Send email notifications to NGOs
+      const listingData = {
+        id: listing.id,
+        title,
+        description,
+        servings,
+        category: category || 'cooked',
+        is_veg: is_veg !== undefined ? is_veg : true,
+        is_halal: is_halal !== undefined ? is_halal : false,
+        pickup_start,
+        pickup_end,
+        address
+      };
+
+      // Send emails asynchronously without blocking response
+      Promise.all(
+        ngoResult.rows.map(ngo =>
+          emailService.sendNewListingNotification(
+            ngo.email,
+            ngo.org_name || ngo.name,
+            listingData,
+            Math.round(ngo.distance)
+          ).catch(err => console.error(`Failed to send email to ${ngo.email}:`, err.message))
+        )
+      ).catch(err => console.error('Error sending listing notification emails:', err.message));
     }
 
     await client.query('COMMIT');

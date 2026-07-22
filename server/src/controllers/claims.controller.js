@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const emailService = require('../utils/email.service');
 
 exports.createClaim = async (req, res, next) => {
   const client = await pool.connect();
@@ -46,6 +47,11 @@ exports.createClaim = async (req, res, next) => {
     `;
     const claimResult = await client.query(claimQuery, [listingId, req.user.id]);
 
+    // Get donor details for email
+    const donorQuery = 'SELECT name, email, email_verified FROM users WHERE id = $1';
+    const donorResult = await client.query(donorQuery, [listing.donor_id]);
+    const donor = donorResult.rows[0];
+
     // Notify donor
     await client.query(
       `INSERT INTO notifications (user_id, type, title, message, data)
@@ -64,6 +70,21 @@ exports.createClaim = async (req, res, next) => {
     });
 
     await client.query('COMMIT');
+
+    // Send email notification to donor
+    if (donor.email_verified) {
+      const listingData = {
+        id: listingId,
+        title: listing.title
+      };
+      emailService.sendClaimStatusUpdate(
+        donor.email,
+        donor.name,
+        listingData,
+        'claimed',
+        req.user.org_name || req.user.name
+      ).catch(err => console.error('Failed to send claim email:', err.message));
+    }
 
     res.status(201).json({
       message: 'Listing claimed successfully',
@@ -132,9 +153,10 @@ exports.markCompleted = async (req, res, next) => {
 
     // Get claim details
     const claimQuery = `
-      SELECT c.*, l.donor_id
+      SELECT c.*, l.donor_id, l.title, u.name as ngo_name, u.email as ngo_email, u.email_verified
       FROM claims c
       JOIN food_listings l ON c.listing_id = l.id
+      JOIN users u ON c.ngo_id = u.id
       WHERE c.id = $1
     `;
     const claimResult = await client.query(claimQuery, [id]);
@@ -166,6 +188,20 @@ exports.markCompleted = async (req, res, next) => {
 
     await client.query('COMMIT');
 
+    // Send email notification to NGO
+    if (claim.email_verified) {
+      const listingData = {
+        id: claim.listing_id,
+        title: claim.title
+      };
+      emailService.sendClaimStatusUpdate(
+        claim.ngo_email,
+        claim.ngo_name,
+        listingData,
+        'completed'
+      ).catch(err => console.error('Failed to send completion email:', err.message));
+    }
+
     res.json({ message: 'Claim marked as completed' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -184,7 +220,11 @@ exports.cancelClaim = async (req, res, next) => {
     await client.query('BEGIN');
 
     const claimResult = await client.query(
-      'SELECT * FROM claims WHERE id = $1 AND ngo_id = $2',
+      `SELECT c.*, l.title, l.donor_id, u.name as donor_name, u.email as donor_email, u.email_verified
+       FROM claims c
+       JOIN food_listings l ON c.listing_id = l.id
+       JOIN users u ON l.donor_id = u.id
+       WHERE c.id = $1 AND c.ngo_id = $2`,
       [id, req.user.id]
     );
 
@@ -208,6 +248,21 @@ exports.cancelClaim = async (req, res, next) => {
     );
 
     await client.query('COMMIT');
+
+    // Send email notification to donor
+    if (claim.email_verified) {
+      const listingData = {
+        id: claim.listing_id,
+        title: claim.title
+      };
+      emailService.sendClaimStatusUpdate(
+        claim.donor_email,
+        claim.donor_name,
+        listingData,
+        'cancelled',
+        req.user.org_name || req.user.name
+      ).catch(err => console.error('Failed to send cancellation email:', err.message));
+    }
 
     res.json({ message: 'Claim cancelled successfully' });
   } catch (error) {
