@@ -1128,7 +1128,206 @@ limit=20  (optional - default 20)
 
 ---
 
-## 7. Notifications APIs
+## 7. Messages APIs (Chat System)
+
+### POST `/messages`
+Send a message in a claim conversation
+
+**Request Body:**
+```json
+{
+  "claim_id": 1,
+  "message": "I'll be there at 3 PM to pick up the food."
+}
+```
+
+**Response (201):**
+```json
+{
+  "message": "Message sent successfully",
+  "data": {
+    "id": 1,
+    "claim_id": 1,
+    "sender_id": 2,
+    "receiver_id": 1,
+    "message": "I'll be there at 3 PM to pick up the food.",
+    "is_read": false,
+    "created_at": "2026-07-23T14:00:00Z"
+  }
+}
+```
+
+**Side Effects:**
+- Creates notification for receiver
+- Emits `message:new` Socket.io event to receiver
+
+**Errors:**
+- `400`: Claim ID or message missing
+- `403`: User is not part of this claim
+- `404`: Claim not found
+
+---
+
+### GET `/messages/conversations`
+Get all conversations for current user
+
+**Response (200):**
+```json
+{
+  "conversations": [
+    {
+      "claim_id": 1,
+      "listing_id": 1,
+      "listing_title": "Fresh Biryani",
+      "claimed_at": "2026-07-23T10:00:00Z",
+      "completed_at": null,
+      "other_user_id": 2,
+      "other_user_name": "Jane Smith",
+      "other_user_picture": "/uploads/profiles/user-2.jpg",
+      "other_user_org": "City Food Bank",
+      "last_message": "I'll be there at 3 PM",
+      "last_message_time": "2026-07-23T14:00:00Z",
+      "unread_count": 2
+    }
+  ]
+}
+```
+
+---
+
+### GET `/messages/claim/:claim_id`
+Get all messages for a specific claim
+
+**Response (200):**
+```json
+{
+  "messages": [
+    {
+      "id": 1,
+      "claim_id": 1,
+      "sender_id": 2,
+      "receiver_id": 1,
+      "message": "Hello, I'd like to confirm the pickup time.",
+      "is_read": true,
+      "created_at": "2026-07-23T13:00:00Z",
+      "sender_name": "Jane Smith",
+      "sender_picture": "/uploads/profiles/user-2.jpg"
+    }
+  ]
+}
+```
+
+**Side Effects:**
+- Automatically marks messages as read if current user is the receiver
+
+**Errors:**
+- `403`: User is not part of this claim
+- `404`: Claim not found
+
+---
+
+### PATCH `/messages/claim/:claim_id/read`
+Mark all messages in a claim as read
+
+**Response (200):**
+```json
+{
+  "message": "Messages marked as read"
+}
+```
+
+---
+
+## 8. Profile Picture APIs
+
+### POST `/users/profile/picture`
+Upload profile picture
+
+**Request:**
+- Content-Type: multipart/form-data
+- Field name: `picture`
+- Max size: 2MB
+- Allowed types: JPEG, PNG, WebP
+
+**Response (200):**
+```json
+{
+  "message": "Profile picture uploaded successfully",
+  "profile_picture": "/uploads/profiles/user-1-1721740800000.jpg"
+}
+```
+
+**Side Effects:**
+- Deletes old profile picture if exists
+- Updates user profile_picture field
+
+**Errors:**
+- `400`: No file uploaded or invalid file type
+- `413`: File size exceeds 2MB limit
+
+---
+
+### DELETE `/users/profile/picture`
+Delete profile picture
+
+**Response (200):**
+```json
+{
+  "message": "Profile picture deleted successfully"
+}
+```
+
+**Errors:**
+- `404`: No profile picture to delete
+
+---
+
+## 9. Pickup Scheduling APIs
+
+### PATCH `/claims/:id/schedule`
+Schedule pickup time for a claim (NGO only)
+
+**Request Body:**
+```json
+{
+  "scheduled_pickup_time": "2026-07-24T15:00:00Z",
+  "pickup_instructions": "Ring the back door bell"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "Pickup scheduled successfully",
+  "claim": {
+    "id": 1,
+    "listing_id": 1,
+    "ngo_id": 2,
+    "claimed_at": "2026-07-23T10:00:00Z",
+    "scheduled_pickup_time": "2026-07-24T15:00:00Z",
+    "pickup_instructions": "Ring the back door bell",
+    "picked_up_at": null,
+    "completed_at": null
+  }
+}
+```
+
+**Validation:**
+- Scheduled time must be within listing's `pickup_start` and `pickup_end` window
+- Only NGO who claimed can schedule pickup
+
+**Side Effects:**
+- Creates notification for donor
+- Emits `claim:pickup_scheduled` Socket.io event to donor
+
+**Errors:**
+- `400`: Scheduled time outside pickup window
+- `403`: Only NGO can schedule pickup
+- `404`: Claim not found
+
+---
+
+## 10. Notifications APIs
 
 ### GET `/notifications`
 Get user's notifications

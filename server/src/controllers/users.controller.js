@@ -1,12 +1,14 @@
 const pool = require('../config/db');
 const bcrypt = require('bcrypt');
+const fs = require('fs').promises;
+const path = require('path');
 
 // Get current user profile
 exports.getProfile = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        id, name, email, phone, role, org_name, verification,
+        id, name, email, phone, role, org_name, verification, profile_picture,
         ST_X(location::geometry) as lng,
         ST_Y(location::geometry) as lat,
         address, avg_rating, created_at
@@ -74,7 +76,7 @@ exports.updateProfile = async (req, res) => {
       SET ${updates.join(', ')}
       WHERE id = $${paramCount}
       RETURNING
-        id, name, email, phone, role, org_name, verification,
+        id, name, email, phone, role, org_name, verification, profile_picture,
         ST_X(location::geometry) as lng,
         ST_Y(location::geometry) as lat,
         address, avg_rating
@@ -136,6 +138,88 @@ exports.changePassword = async (req, res) => {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     console.error('Change password error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Upload profile picture
+exports.uploadProfilePicture = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const userId = req.user.id;
+    const profilePicturePath = `/uploads/profiles/${req.file.filename}`;
+
+    // Get old profile picture to delete it
+    const oldPicture = await pool.query(
+      'SELECT profile_picture FROM users WHERE id = $1',
+      [userId]
+    );
+
+    // Update user profile picture in database
+    const result = await pool.query(
+      `UPDATE users
+       SET profile_picture = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING profile_picture`,
+      [profilePicturePath, userId]
+    );
+
+    // Delete old profile picture file if it exists
+    if (oldPicture.rows[0]?.profile_picture) {
+      const oldFilePath = path.join(__dirname, '../../', oldPicture.rows[0].profile_picture);
+      try {
+        await fs.unlink(oldFilePath);
+      } catch (err) {
+        console.log('Old profile picture not found or already deleted');
+      }
+    }
+
+    res.json({
+      message: 'Profile picture uploaded successfully',
+      profile_picture: result.rows[0].profile_picture
+    });
+  } catch (error) {
+    console.error('Upload profile picture error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Delete profile picture
+exports.deleteProfilePicture = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get current profile picture
+    const result = await pool.query(
+      'SELECT profile_picture FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (!result.rows[0]?.profile_picture) {
+      return res.status(404).json({ message: 'No profile picture to delete' });
+    }
+
+    const filePath = path.join(__dirname, '../../', result.rows[0].profile_picture);
+
+    // Delete from database
+    await pool.query(
+      'UPDATE users SET profile_picture = NULL, updated_at = NOW() WHERE id = $1',
+      [userId]
+    );
+
+    // Delete file
+    try {
+      await fs.unlink(filePath);
+    } catch (err) {
+      console.log('Profile picture file not found');
+    }
+
+    res.json({ message: 'Profile picture deleted successfully' });
+  } catch (error) {
+    console.error('Delete profile picture error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

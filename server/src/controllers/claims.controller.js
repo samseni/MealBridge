@@ -274,3 +274,96 @@ exports.cancelClaim = async (req, res, next) => {
     client.release();
   }
 };
+
+// Schedule pickup time for a claim
+exports.schedulePickup = async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { scheduled_pickup_time, pickup_instructions } = req.body;
+
+    if (!scheduled_pickup_time) {
+      return res.status(400).json({ message: 'Scheduled pickup time is required' });
+    }
+
+    await client.query('BEGIN');
+
+    // Get claim details
+    const claimQuery = `
+      SELECT c.*, l.donor_id, l.pickup_start, l.pickup_end, l.title, u.name as donor_name, u.email as donor_email, u.email_verified
+      FROM claims c
+      JOIN food_listings l ON c.listing_id = l.id
+      JOIN users u ON l.donor_id = u.id
+      WHERE c.id = $1 AND c.ngo_id = $2
+    `;
+    const claimResult = await client.query(claimQuery, [id, req.user.id]);
+
+    if (claimResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Claim not found' });
+    }
+
+    const claim = claimResult.rows[0];
+    const scheduledTime = new Date(scheduled_pickup_time);
+    const pickupStart = new Date(claim.pickup_start);
+    const pickupEnd = new Date(claim.pickup_end);
+
+    // Validate that scheduled time is within pickup window
+    if (scheduledTime < pickupStart || scheduledTime > pickupEnd) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        message: 'Scheduled pickup time must be within the listing\'s pickup window',
+        pickup_window: {
+          start: claim.pickup_start,
+          end: claim.pickup_end
+        }
+      });
+    }
+
+    // Update claim with scheduled pickup time
+    const result = await client.query(
+      `UPDATE claims
+       SET scheduled_pickup_time = $1, pickup_instructions = $2
+       WHERE id = $3
+       RETURNING *`,
+      [scheduled_pickup_time, pickup_instructions || null, id]
+    );
+
+    // Notify donor
+    await client.query(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES ($1, 'pickup_scheduled', 'Pickup Scheduled', $2, $3)`,
+      [
+        claim.donor_id,
+        `Pickup scheduled for ${new Date(scheduled_pickup_time).toLocaleString()}`,
+        JSON.stringify({ claim_id: id, scheduled_pickup_time })
+      ]
+    );
+
+    // Emit socket event to donor
+    const io = req.app.get('io');
+    io.to(`user:${claim.donor_id}`).emit('claim:pickup_scheduled', {
+      claimId: id,
+      scheduled_pickup_time,
+      pickup_instructions
+    });
+
+    await client.query('COMMIT');
+
+    // Send email notification to donor
+    if (claim.email_verified) {
+      // TODO: Add emailService.sendPickupScheduled method
+      console.log(`Pickup scheduled email should be sent to ${claim.donor_email}`);
+    }
+
+    res.json({
+      message: 'Pickup scheduled successfully',
+      claim: result.rows[0]
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+};

@@ -5,6 +5,7 @@ const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 router.post('/:listingId', authMiddleware, roleMiddleware('ngo'), claimsController.createClaim);
 router.get('/mine', authMiddleware, claimsController.getMyClaims);
+router.patch('/:id/schedule', authMiddleware, roleMiddleware('ngo'), claimsController.schedulePickup);
 router.patch('/:id/pickup', authMiddleware, roleMiddleware('ngo'), claimsController.markInTransit);
 router.patch('/:id/complete', authMiddleware, roleMiddleware('donor'), claimsController.markCompleted);
 router.delete('/:id', authMiddleware, roleMiddleware('ngo'), claimsController.cancelClaim);

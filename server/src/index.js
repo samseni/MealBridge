@@ -15,6 +15,7 @@ const ratingsRoutes = require('./routes/ratings.routes');
 const adminRoutes = require('./routes/admin.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
+const messagesRoutes = require('./routes/messages.routes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -107,6 +108,7 @@ app.use('/api/ratings', ratingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/messages', messagesRoutes);
 
 // Error handling
 app.use(errorHandler);
