@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const pool = require('./config/db');
 const authRoutes = require('./routes/auth.routes');
+const usersRoutes = require('./routes/users.routes');
 const listingsRoutes = require('./routes/listings.routes');
 const claimsRoutes = require('./routes/claims.routes');
 const ratingsRoutes = require('./routes/ratings.routes');
@@ -98,6 +99,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 app.use('/api/listings', listingsRoutes);
 app.use('/api/claims', claimsRoutes);
 app.use('/api/ratings', ratingsRoutes);

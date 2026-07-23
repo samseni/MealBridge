@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axios from '../api/axios';
+import { adminAPI } from '../api/admin.api';
+import { listingsAPI } from '../api/listings.api';
 import StatsCard from '../components/donor/StatsCard';
 import { showToast } from '../components/common/ToastProvider';
 import EmptyState from '../components/common/EmptyState';
@@ -32,8 +33,8 @@ export default function AdminDashboard() {
 
   const fetchVerifications = async () => {
     try {
-      const response = await axios.get('/admin/verifications');
-      setVerifications(response.data.verifications);
+      const response = await adminAPI.getPendingVerifications();
+      setVerifications(response.data.ngos);
     } catch (error) {
       console.error('Failed to fetch verifications:', error);
     }
@@ -41,8 +42,20 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('/admin/stats');
-      setStats(response.data.stats);
+      const response = await adminAPI.getPlatformStats();
+      const statsData = response.data;
+
+      // Map backend response to UI expectations
+      setStats({
+        total_donors: statsData.users.total_donors,
+        total_ngos: statsData.users.total_ngos,
+        verified_ngos: statsData.users.approved_ngos,
+        total_listings: statsData.listings.total_listings,
+        active_listings: statsData.listings.available_listings,
+        completed_claims: statsData.claims.completed_claims,
+        total_meals_saved: statsData.listings.servings_distributed,
+        pending_verifications: statsData.users.pending_verifications
+      });
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     }
@@ -50,7 +63,7 @@ export default function AdminDashboard() {
 
   const fetchDonors = async () => {
     try {
-      const response = await axios.get('/admin/users?role=donor&limit=10');
+      const response = await adminAPI.getAllUsers({ role: 'donor', limit: 10 });
       setDonors(response.data.users);
     } catch (error) {
       console.error('Failed to fetch donors:', error);
@@ -59,7 +72,7 @@ export default function AdminDashboard() {
 
   const fetchNgos = async () => {
     try {
-      const response = await axios.get('/admin/users?role=ngo&limit=10');
+      const response = await adminAPI.getAllUsers({ role: 'ngo', limit: 10 });
       setNgos(response.data.users);
     } catch (error) {
       console.error('Failed to fetch NGOs:', error);
@@ -68,8 +81,8 @@ export default function AdminDashboard() {
 
   const fetchListings = async () => {
     try {
-      const response = await axios.get('/listings?limit=10');
-      setListings(response.data.listings || []);
+      const response = await listingsAPI.getAll();
+      setListings(response.data.listings?.slice(0, 10) || []);
     } catch (error) {
       console.error('Failed to fetch listings:', error);
     }
@@ -77,7 +90,7 @@ export default function AdminDashboard() {
 
   const fetchAllUsers = async () => {
     try {
-      const response = await axios.get('/admin/users?limit=100');
+      const response = await adminAPI.getAllUsers({ limit: 100 });
       setAllUsers(response.data.users);
     } catch (error) {
       console.error('Failed to fetch all users:', error);
@@ -86,10 +99,15 @@ export default function AdminDashboard() {
 
   const handleVerification = async (userId, status) => {
     try {
-      await axios.patch(`/admin/verify/${userId}`, { status });
+      if (status === 'approved') {
+        await adminAPI.approveNGO(userId);
+      } else {
+        await adminAPI.rejectNGO(userId);
+      }
       showToast.success(`NGO ${status} successfully!`);
       fetchVerifications();
       fetchNgos();
+      fetchStats();
     } catch (error) {
       showToast.error(error.response?.data?.message || 'Failed to update verification');
     }
