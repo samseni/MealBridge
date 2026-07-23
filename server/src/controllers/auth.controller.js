@@ -117,6 +117,13 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Check if user account is active (if column exists)
+    if (user.active === false) {
+      return res.status(403).json({
+        message: 'Your account has been suspended. Please contact support.'
+      });
+    }
+
     const token = generateToken(user);
 
     // Remove password hash from response

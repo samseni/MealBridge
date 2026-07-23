@@ -20,6 +20,7 @@ CREATE TABLE users (
     role user_role NOT NULL DEFAULT 'donor',
     org_name VARCHAR(200),
     verification verification_status DEFAULT 'pending',
+    active BOOLEAN DEFAULT TRUE,
     location GEOGRAPHY(POINT, 4326),
     address TEXT,
     avg_rating NUMERIC(2,1) DEFAULT 0 CHECK (avg_rating >= 0 AND avg_rating <= 5),
@@ -90,6 +91,7 @@ CREATE TABLE notifications (
 CREATE INDEX idx_users_location ON users USING GIST (location);
 CREATE INDEX idx_users_role ON users (role);
 CREATE INDEX idx_users_verification ON users (verification);
+CREATE INDEX idx_users_active ON users (active);
 
 CREATE INDEX idx_listings_location ON food_listings USING GIST (location);
 CREATE INDEX idx_listings_status ON food_listings (status);

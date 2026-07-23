@@ -8,7 +8,7 @@ exports.getAllUsers = async (req, res) => {
 
     let query = `
       SELECT
-        id, name, email, phone, role, org_name, verification,
+        id, name, email, phone, role, org_name, verification, active,
         ST_X(location::geometry) as lng,
         ST_Y(location::geometry) as lat,
         address, avg_rating, created_at
@@ -249,13 +249,47 @@ exports.toggleUserStatus = async (req, res) => {
     const { id } = req.params;
     const { active } = req.body;
 
-    // Note: This requires adding an 'active' column to users table
-    // For now, we'll return a placeholder response
-    res.status(501).json({
-      message: 'User status toggle not yet implemented - requires database migration'
+    if (typeof active !== 'boolean') {
+      return res.status(400).json({ message: 'Active status must be a boolean' });
+    }
+
+    // Check if user exists and is not an admin
+    const userCheck = await pool.query(
+      'SELECT role, name, email FROM users WHERE id = $1',
+      [id]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (userCheck.rows[0].role === 'admin') {
+      return res.status(403).json({ message: 'Cannot suspend admin users' });
+    }
+
+    // Update user active status
+    const result = await pool.query(
+      `UPDATE users
+       SET active = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING id, name, email, role, active`,
+      [active, id]
+    );
+
+    res.json({
+      message: `User ${active ? 'activated' : 'suspended'} successfully`,
+      user: result.rows[0]
     });
   } catch (error) {
     console.error('Toggle user status error:', error);
+
+    // Handle case where active column doesn't exist yet
+    if (error.code === '42703') {
+      return res.status(500).json({
+        message: 'Database migration required. Please run: server/src/db/migrations/add_user_active_column.sql'
+      });
+    }
+
     res.status(500).json({ message: 'Server error' });
   }
 };
