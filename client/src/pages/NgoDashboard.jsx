@@ -10,6 +10,7 @@ import FilterPanel from '../components/common/FilterPanel';
 import Analytics from '../components/common/Analytics';
 import NgoHistory from '../components/ngo/NgoHistory';
 import MapView from '../components/common/MapView';
+import NotificationBell from '../components/common/NotificationBell';
 
 export default function NgoDashboard() {
   const { user, logout } = useAuth();
@@ -406,23 +407,26 @@ export default function NgoDashboard() {
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <header className="bg-white shadow-sm">
-          <div className="px-8 py-6">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {currentView === 'dashboard' && 'Dashboard Overview'}
-              {currentView === 'find' && 'Find Available Food'}
-              {currentView === 'claims' && 'My Claims'}
-              {currentView === 'map' && 'Food Map View'}
-              {currentView === 'analytics' && 'Analytics & Insights'}
-              {currentView === 'history' && 'Claim History'}
-            </h2>
-            <p className="text-gray-600 mt-1">
-              {currentView === 'dashboard' && 'Track your food rescue activities'}
-              {currentView === 'find' && 'Browse and claim available food donations'}
-              {currentView === 'claims' && 'Manage your active and completed claims'}
-              {currentView === 'map' && 'Visualize nearby food donations on the map'}
-              {currentView === 'analytics' && 'Track your rescue impact and trends'}
-              {currentView === 'history' && 'View your complete claim history'}
-            </p>
+          <div className="px-8 py-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {currentView === 'dashboard' && 'Dashboard Overview'}
+                {currentView === 'find' && 'Find Available Food'}
+                {currentView === 'claims' && 'My Claims'}
+                {currentView === 'map' && 'Food Map View'}
+                {currentView === 'analytics' && 'Analytics & Insights'}
+                {currentView === 'history' && 'Claim History'}
+              </h2>
+              <p className="text-gray-600 mt-1">
+                {currentView === 'dashboard' && 'Track your food rescue activities'}
+                {currentView === 'find' && 'Browse and claim available food donations'}
+                {currentView === 'claims' && 'Manage your active and completed claims'}
+                {currentView === 'map' && 'Visualize nearby food donations on the map'}
+                {currentView === 'analytics' && 'Track your rescue impact and trends'}
+                {currentView === 'history' && 'View your complete claim history'}
+              </p>
+            </div>
+            <NotificationBell />
           </div>
         </header>
 

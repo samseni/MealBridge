@@ -7,6 +7,7 @@ import { showToast } from '../components/common/ToastProvider';
 import ImageUpload from '../components/common/ImageUpload';
 import Analytics from '../components/common/Analytics';
 import DonorHistory from '../components/donor/DonorHistory';
+import NotificationBell from '../components/common/NotificationBell';
 import axios from 'axios';
 
 export default function DonorDashboard() {
@@ -257,21 +258,24 @@ export default function DonorDashboard() {
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <header className="bg-white shadow-sm">
-          <div className="px-8 py-6">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {currentView === 'dashboard' && 'Dashboard Overview'}
-              {currentView === 'create' && 'Create New Listing'}
-              {currentView === 'listings' && 'My Listings'}
-              {currentView === 'analytics' && 'Analytics & Insights'}
-              {currentView === 'history' && 'Donation History'}
-            </h2>
-            <p className="text-gray-600 mt-1">
-              {currentView === 'dashboard' && 'Welcome back! Here\'s your impact summary'}
-              {currentView === 'create' && 'Share your surplus food with those in need'}
-              {currentView === 'listings' && 'Manage all your food donation listings'}
-              {currentView === 'analytics' && 'Track your donation impact and trends'}
-              {currentView === 'history' && 'View your complete donation history'}
-            </p>
+          <div className="px-8 py-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {currentView === 'dashboard' && 'Dashboard Overview'}
+                {currentView === 'create' && 'Create New Listing'}
+                {currentView === 'listings' && 'My Listings'}
+                {currentView === 'analytics' && 'Analytics & Insights'}
+                {currentView === 'history' && 'Donation History'}
+              </h2>
+              <p className="text-gray-600 mt-1">
+                {currentView === 'dashboard' && 'Welcome back! Here\'s your impact summary'}
+                {currentView === 'create' && 'Share your surplus food with those in need'}
+                {currentView === 'listings' && 'Manage all your food donation listings'}
+                {currentView === 'analytics' && 'Track your donation impact and trends'}
+                {currentView === 'history' && 'View your complete donation history'}
+              </p>
+            </div>
+            <NotificationBell />
           </div>
         </header>
 
