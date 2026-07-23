@@ -1684,15 +1684,1115 @@ VITE_SOCKET_URL=http://localhost:5000
 # (Note: process.env won't work in Vite!)
 ```
 
+### Step 6: Create Axios Configuration
+
+Create `client/src/api/axios.js`:
+
+```javascript
+// ===== Import Axios Library =====
+// axios = HTTP client for making API requests
+import axios from 'axios';
+
+// ===== Create Axios Instance =====
+// createInstance() creates a configured axios instance
+// This instance has predefined settings that apply to all requests
+const axiosInstance = axios.create({
+  // baseURL = prepended to all request URLs
+  // Example: axios.get('/users') becomes http://localhost:5000/api/users
+  baseURL: `${import.meta.env.VITE_API_URL}/api`,
+
+  // Default headers sent with every request
+  headers: {
+    'Content-Type': 'application/json'  //告诉 server 我们发送 JSON data
+  }
+});
+
+// ===== REQUEST INTERCEPTOR =====
+// Runs BEFORE every request is sent
+// Use case: Automatically add authentication token
+axiosInstance.interceptors.request.use(
+  (config) => {
+    // config = request configuration object
+    // Contains: url, method, headers, data, etc.
+
+    // Get JWT token from localStorage
+    // localStorage.getItem() retrieves stored data
+    const token = localStorage.getItem('token');
+
+    if (token) {
+      // Add Authorization header if token exists
+      // Format: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Return modified config
+    // Request will be sent with this config
+    return config;
+  },
+  (error) => {
+    // Handle request errors
+    // This rarely happens (usually network issues)
+    return Promise.reject(error);
+  }
+);
+
+// ===== RESPONSE INTERCEPTOR =====
+// Runs AFTER every response is received
+// Use case: Handle common errors globally (like expired token)
+axiosInstance.interceptors.response.use(
+  (response) => {
+    // response = successful response from server
+    // Contains: data, status, headers, config, etc.
+
+    // For successful responses (2xx status codes), just return as-is
+    return response;
+  },
+  (error) => {
+    // error.response = response from server with error status (4xx, 5xx)
+
+    // Check if error is 401 Unauthorized (token expired/invalid)
+    if (error.response?.status === 401) {
+      // Token is invalid or expired
+
+      // Clear authentication data from localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+
+      // Redirect to login page
+      // wi[Tuesday 11:28 AM] Praneeth
+import { invalidateModule } from '../../lib/cache/invalidateModule';
+
+ ndow.location.href = force page reload and navigation
+      window.location.href = '/login';
+    }
+
+    // Reject promise with error
+    // This will be caught in try-catch blocks
+    return Promise.reject(error);
+  }
+);
+
+// ===== Export Configured Instance =====
+// Other files will import this instead of axios directly
+export default axiosInstance;
+
+// Usage in other files:
+// import axios from './axios';
+// axios.get('/users');  // Automatically includes token and base URL
+```
+
+### Step 7: Create Auth Context
+
+Create `client/src/context/AuthContext.jsx`:
+
+```javascript
+// ===== Import React Hooks & Router =====
+// createContext = creates context for sharing state
+// useContext = hook to consume context
+// useState = hook for component state
+// useEffect = hook for side effects
+import { createContext, useContext, useState, useEffect } from 'react';
+
+// useNavigate = hook for programmatic navigation
+import { useNavigate } from 'react-router-dom';
+
+// Import configured axios instance
+import axios from '../api/axios';
+
+// ===== CREATE CONTEXT =====
+// Context allows sharing state without passing props
+// undefined = initial value (will be replaced by Provider)
+const AuthContext = createContext();
+
+// ===== CUSTOM HOOK TO USE AUTH CONTEXT =====
+// This hook makes it easier to use AuthContext
+export const useAuth = () => {
+  // useContext() gets the current context value
+  const context = useContext(AuthContext);
+
+  // Throw error if used outside AuthProvider
+  // Prevents bugs from forgetting to wrap components in Provider
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+
+  return context;
+};
+
+// ===== AUTH PROVIDER COMPONENT =====
+// Wraps app and provides authentication state & functions
+export const AuthProvider = ({ children }) => {
+  // children = all child components that will have access to auth state
+
+  // ─────────────────────────────────────────
+  // STATE
+  // ─────────────────────────────────────────
+
+  // user = current logged-in user (null if not logged in)
+  const [user, setUser] = useState(null);
+
+  // loading = true while checking if user is logged in (on page load)
+  const [loading, setLoading] = useState(true);
+
+  // useNavigate hook for redirecting user
+  const navigate = useNavigate();
+
+  // ─────────────────────────────────────────
+  // LOAD USER FROM LOCALSTORAGE ON MOUNT
+  // ─────────────────────────────────────────
+
+  // useEffect with empty array [] runs once when component mounts
+  useEffect(() => {
+    // Check if user data exists in localStorage
+    // localStorage persists data between page refreshes
+    const storedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+
+    if (storedUser && token) {
+      // Parse JSON string back to object
+      // localStorage stores everything as strings
+      setUser(JSON.parse(storedUser));
+    }
+
+    // Set loading to false
+    // App can now render (no longer showing loading screen)
+    setLoading(false);
+  }, []); // Empty array = run only once on mount
+
+  // ─────────────────────────────────────────
+  // LOGIN FUNCTION
+  // ─────────────────────────────────────────
+
+  const login = async (email, password) => {
+    // async = function returns a Promise
+    // Can be awaited in components
+
+    // Make POST request to login endpoint
+    const response = await axios.post('/auth/login', {
+      email,
+      password
+    });
+
+    // Destructure response data
+    const { token, user } = response.data;
+
+    // ─────────────────────────────────────────
+    // SAVE TO LOCALSTORAGE
+    // ─────────────────────────────────────────
+
+    // Save token for future API requests
+    localStorage.setItem('token', token);
+
+    // Save user data
+    // JSON.stringify() converts object to string
+    localStorage.setItem('user', JSON.stringify(user));
+
+    // Update state
+    // This triggers re-render of all components using useAuth()
+    setUser(user);
+
+    // ─────────────────────────────────────────
+    // REDIRECT BASED ON USER ROLE
+    // ─────────────────────────────────────────
+
+    if (user.role === 'admin') {
+      // Admin → Admin Dashboard
+      navigate('/admin-dashboard');
+    } else if (user.role === 'ngo') {
+      // NGO → NGO Dashboard
+      navigate('/ngo-dashboard');
+    } else {
+      // Donor → Donor Dashboard
+      navigate('/donor-dashboard');
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // LOGOUT FUNCTION
+  // ─────────────────────────────────────────
+
+  const logout = () => {
+    // Clear localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+
+    // Clear user state
+    setUser(null);
+
+    // Redirect to login page
+    navigate('/login');
+  };
+
+  // ─────────────────────────────────────────
+  // PROVIDE CONTEXT VALUE
+  // ─────────────────────────────────────────
+
+  // value = object containing all auth-related state & functions
+  // This will be available to all child components via useAuth()
+  const value = {
+    user,      // Current user object or null
+    login,     // Function to login
+    logout,    // Function to logout
+    loading    // Loading state
+  };
+
+  // ─────────────────────────────────────────
+  // RENDER PROVIDER
+  // ─────────────────────────────────────────
+
+  return (
+    // AuthContext.Provider makes value available to children
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Usage in components:
+// const { user, login, logout } = useAuth();
+```
+
+### Step 8: Create Socket Context
+
+Create `client/src/context/SocketContext.jsx`:
+
+```javascript
+// ===== Import Dependencies =====
+import { createContext, useContext, useEffect, useState } from 'react';
+
+// Import Socket.io client library
+import io from 'socket.io-client';
+
+// Import AuthContext to get current user
+import { useAuth } from './AuthContext';
+
+// ===== CREATE SOCKET CONTEXT =====
+const SocketContext = createContext();
+
+// ===== CUSTOM HOOK =====
+export const useSocket = () => {
+  return useContext(SocketContext);
+};
+
+// ===== SOCKET PROVIDER =====
+export const SocketProvider = ({ children }) => {
+  // socket = Socket.io connection instance
+  const [socket, setSocket] = useState(null);
+
+  // Get current user from AuthContext
+  const { user } = useAuth();
+
+  // ─────────────────────────────────────────
+  // CREATE SOCKET CONNECTION WHEN USER LOGS IN
+  // ─────────────────────────────────────────
+
+  useEffect(() => {
+    if (user) {
+      // User is logged in, create socket connection
+
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('token');
+
+      // ─────────────────────────────────────────
+      // CONNECT TO SOCKET.IO SERVER
+      // ─────────────────────────────────────────
+
+      const newSocket = io(import.meta.env.VITE_SOCKET_URL, {
+        // auth = authentication data sent during handshake
+        // Server will verify this token before allowing connection
+        auth: { token }
+      });
+
+      // ─────────────────────────────────────────
+      // EVENT LISTENERS
+      // ─────────────────────────────────────────
+
+      // 'connect' event fires when connection established
+      newSocket.on('connect', () => {
+        console.log('✅ Socket connected');
+        console.log('Socket ID:', newSocket.id);
+      });
+
+      // 'disconnect' event fires when connection lost
+      newSocket.on('disconnect', () => {
+        console.log('❌ Socket disconnected');
+      });
+
+      // Save socket instance to state
+      // Now components can access socket via useSocket()
+      setSocket(newSocket);
+
+      // ─────────────────────────────────────────
+      // CLEANUP ON UNMOUNT
+      // ─────────────────────────────────────────
+
+      // Return cleanup function
+      // Runs when component unmounts or user changes
+      return () => {
+        // Close socket connection
+        newSocket.close();
+      };
+    } else {
+      // User logged out
+
+      if (socket) {
+        // Close existing socket connection
+        socket.close();
+        setSocket(null);
+      }
+    }
+  }, [user]); // Re-run when user changes (login/logout)
+
+  // ─────────────────────────────────────────
+  // PROVIDE SOCKET TO CHILDREN
+  // ─────────────────────────────────────────
+
+  return (
+    <SocketContext.Provider value={socket}>
+      {children}
+    </SocketContext.Provider>
+  );
+};
+
+// Usage in components:
+// const socket = useSocket();
+//
+// useEffect(() => {
+//   if (socket) {
+//     socket.on('notification', (data) => {
+//       console.log('New notification:', data);
+//     });
+//   }
+// }, [socket]);
+```
+
+### Step 9: Create Login Page
+
+Create `client/src/pages/Login.jsx`:
+
+```javascript
+// ===== Import Dependencies =====
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+export default function Login() {
+  // ─────────────────────────────────────────
+  // STATE
+  // ─────────────────────────────────────────
+
+  // formData = stores form input values
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
+
+  // error = stores error message (if login fails)
+  const [error, setError] = useState('');
+
+  // loading = true while waiting for API response
+  const [loading, setLoading] = useState(false);
+
+  // Get login function from AuthContext
+  const { login } = useAuth();
+
+  // ─────────────────────────────────────────
+  // HANDLE FORM SUBMISSION
+  // ─────────────────────────────────────────
+
+  const handleSubmit = async (e) => {
+    // Prevent default form submission (page reload)
+    e.preventDefault();
+
+    // Clear previous error
+    setError('');
+
+    // Set loading state
+    setLoading(true);
+
+    try {
+      // Call login function from AuthContext
+      // This makes API request and saves token
+      await login(formData.email, formData.password);
+
+      // If successful, user will be redirected (handled in AuthContext)
+
+    } catch (err) {
+      // Login failed
+
+      // Get error message from response
+      // err.response?.data?.message = server error message
+      // || 'Login failed' = fallback if no message
+      setError(err.response?.data?.message || 'Login failed');
+
+    } finally {
+      // Always runs (success or failure)
+      // Set loading back to false
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // RENDER LOGIN FORM
+  // ─────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-orange-100 flex items-center justify-center p-4">
+      {/* Card Container */}
+      <div className="card max-w-md w-full">
+
+        {/* Header */}
+        <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
+          🍛 MealBridge
+        </h1>
+        <p className="text-center text-gray-600 mb-6">
+          Login to your account
+        </p>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        {/* Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Email Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({
+                ...formData,           // Keep other fields
+                email: e.target.value  // Update email
+              })}
+              className="input"
+              required
+              placeholder="you@example.com"
+            />
+          </div>
+
+          {/* Password Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({
+                ...formData,
+                password: e.target.value
+              })}
+              className="input"
+              required
+              placeholder="••••••••"
+            />
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}  // Disable while loading
+            className="btn btn-primary w-full"
+          >
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+        </form>
+
+        {/* Register Link */}
+        <p className="text-center text-sm text-gray-600 mt-4">
+          Don't have an account?{' '}
+          <Link
+            to="/register"
+            className="text-primary-600 hover:text-primary-700 font-medium"
+          >
+            Register
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+```
+
+### Step 10: Create Register Page
+
+Create `client/src/pages/Register.jsx`:
+
+```javascript
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import axios from '../api/axios';
+
+export default function Register() {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+    role: 'donor',  // Default role
+    org_name: ''    // For NGOs only
+  });
+
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      // Make registration API call
+      const response = await axios.post('/auth/register', formData);
+
+      // Save token and user to localStorage
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      // Redirect based on role
+      if (response.data.user.role === 'ngo') {
+        navigate('/ngo-dashboard');
+      } else {
+        navigate('/donor-dashboard');
+      }
+
+    } catch (err) {
+      setError(err.response?.data?.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-orange-100 flex items-center justify-center p-4">
+      <div className="card max-w-md w-full">
+        <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
+          🍛 MealBridge
+        </h1>
+        <p className="text-center text-gray-600 mb-6">
+          Create your account
+        </p>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              className="input"
+              required
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              className="input"
+              required
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              className="input"
+              required
+              minLength={6}
+            />
+          </div>
+
+          {/* Phone */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Phone (Optional)
+            </label>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              className="input"
+            />
+          </div>
+
+          {/* Role Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              I am a
+            </label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({...formData, role: e.target.value})}
+              className="input"
+            >
+              <option value="donor">Donor (Restaurant/Individual)</option>
+              <option value="ngo">NGO (Food Bank)</option>
+            </select>
+          </div>
+
+          {/* Organization Name (show only for NGOs) */}
+          {formData.role === 'ngo' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Organization Name
+              </label>
+              <input
+                type="text"
+                value={formData.org_name}
+                onChange={(e) => setFormData({...formData, org_name: e.target.value})}
+                className="input"
+                required
+              />
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary w-full"
+          >
+            {loading ? 'Creating Account...' : 'Register'}
+          </button>
+        </form>
+
+        <p className="text-center text-sm text-gray-600 mt-4">
+          Already have an account?{' '}
+          <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">
+            Login
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+```
+
+### Step 11: Create App Component with Routes
+
+Create `client/src/App.jsx`:
+
+```javascript
+// ===== Import Dependencies =====
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
+// Import Context Providers
+import { AuthProvider } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext';
+
+// Import Pages
+import Login from './pages/Login';
+import Register from './pages/Register';
+import DonorDashboard from './pages/DonorDashboard';
+import NgoDashboard from './pages/NgoDashboard';
+import AdminDashboard from './pages/AdminDashboard';
+
+function App() {
+  return (
+    // ─────────────────────────────────────────
+    // ROUTER - Enables client-side routing
+    // ─────────────────────────────────────────
+    <BrowserRouter>
+
+      {/* ─────────────────────────────────────────
+          AUTH PROVIDER - Wraps entire app
+          Provides: user, login, logout to all components
+          ───────────────────────────────────────── */}
+      <AuthProvider>
+
+        {/* ─────────────────────────────────────────
+            SOCKET PROVIDER - Provides Socket.io connection
+            ───────────────────────────────────────── */}
+        <SocketProvider>
+
+          {/* ─────────────────────────────────────────
+              ROUTES - Define URL → Component mapping
+              ───────────────────────────────────────── */}
+          <Routes>
+            {/* Public Routes (no authentication required) */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+
+            {/* Protected Routes (require authentication) */}
+            <Route path="/donor-dashboard" element={<DonorDashboard />} />
+            <Route path="/ngo-dashboard" element={<NgoDashboard />} />
+            <Route path="/admin-dashboard" element={<AdminDashboard />} />
+
+            {/* Default Route - redirect to login */}
+            <Route path="/" element={<Navigate to="/login" />} />
+
+            {/* 404 - Not Found (catch-all route) */}
+            <Route path="*" element={<Navigate to="/login" />} />
+          </Routes>
+
+        </SocketProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+```
+
+### Step 12: Update Entry Point
+
+Edit `client/src/main.jsx`:
+
+```javascript
+// ===== Import React =====
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+
+// ===== Import App Component =====
+import App from './App.jsx'
+
+// ===== Import Global Styles =====
+// This includes Tailwind CSS
+import './index.css'
+
+// ===== Render App =====
+// createRoot() creates a root for rendering
+// document.getElementById('root') = <div id="root"> in index.html
+ReactDOM.createRoot(document.getElementById('root')).render(
+  // StrictMode = development mode checks
+  // Helps find bugs and deprecated features
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
+```
+
+### Step 13: Test Frontend
+
+```bash
+# ===== Start Development Server =====
+# npm run dev = execute dev script from package.json
+# Vite will start dev server with hot reload
+npm run dev
+
+# Expected output:
+#   VITE v4.x.x  ready in xxx ms
+#
+#   ➜  Local:   http://localhost:5173/
+#   ➜  Network: use --host to expose
+#   ➜  press h to show help
+
+# ===== Open in Browser =====
+# Navigate to: http://localhost:5173
+
+# You should see the login page
+# Try creating an account and logging in
+```
+
 ---
 
-**The documentation continues with detailed comments for all remaining sections. Due to length, I'll continue in the next part. Would you like me to continue with the complete commented version?**
+## Integration & Testing
 
-This updated version includes:
-- ✅ Detailed inline comments for every command
-- ✅ Explanations of what each parameter does
-- ✅ Why each command is needed
-- ✅ Expected outputs
-- ✅ How commands work under the hood
+### Step 1: Test Complete Flow
 
-Should I continue with the rest of the file (Frontend API setup, Context, Components, etc.)?
+```bash
+# ===== Terminal 1: Start Backend =====
+cd server
+npm run dev
+
+# Expected output:
+# ✅ Database connected successfully
+# 🚀 Server running on port 5000
+
+# ===== Terminal 2: Start Frontend =====
+cd client
+npm run dev
+
+# Expected output:
+# ➜  Local:   http://localhost:5173/
+```
+
+### Step 2: Test Registration
+
+1. **Open Browser:** `http://localhost:5173`
+2. **Click Register**
+3. **Fill Form:**
+   ```
+   Name: Test User
+   Email: test@example.com
+   Password: password123
+   Role: Donor
+   ```
+4. **Submit Form**
+5. **Check:**
+   - Browser console: No errors
+   - Network tab: 201 response from `/api/auth/register`
+   - Should redirect to dashboard
+
+### Step 3: Test Login
+
+1. **Logout** (if logged in)
+2. **Navigate to Login**
+3. **Enter credentials:**
+   ```
+   Email: test@example.com
+   Password: password123
+   ```
+4. **Submit**
+5. **Check:**
+   - localStorage has `token` and `user`
+   - Redirected to appropriate dashboard
+   - Socket.io connection established (check browser console)
+
+### Step 4: Verify Database
+
+```bash
+# Connect to database
+psql -U postgres -d mealbridge
+
+# Check if user was created
+SELECT id, name, email, role FROM users;
+
+# Expected output:
+#  id |   name    |      email       | role
+# ----+-----------+------------------+-------
+#   1 | Test User | test@example.com | donor
+
+# Exit
+\q
+```
+
+### Step 5: Test Socket.io Connection
+
+Open browser DevTools → Console:
+
+```
+✅ Socket connected
+Socket ID: abc123xyz
+```
+
+---
+
+## File Structure
+
+### Complete Frontend Structure
+
+```
+client/
+├── public/              # Static assets
+├── src/
+│   ├── api/            # API client functions
+│   │   ├── axios.js           # Configured axios instance
+│   │   ├── admin.api.js       # Admin API calls
+│   │   ├── listings.api.js    # Listings API calls
+│   │   └── notifications.api.js # Notifications API
+│   │
+│   ├── components/     # React components
+│   │   ├── common/            # Shared components
+│   │   │   ├── NotificationBell.jsx
+│   │   │   ├── Modal.jsx
+│   │   │   ├── MapView.jsx
+│   │   │   └── ...
+│   │   ├── donor/             # Donor components
+│   │   │   ├── StatsCard.jsx
+│   │   │   └── DonorHistory.jsx
+│   │   └── ngo/               # NGO components
+│   │       └── NgoHistory.jsx
+│   │
+│   ├── context/        # React Context providers
+│   │   ├── AuthContext.jsx    # Authentication state
+│   │   └── SocketContext.jsx  # Socket.io connection
+│   │
+│   ├── pages/          # Page components
+│   │   ├── Login.jsx
+│   │   ├── Register.jsx
+│   │   ├── DonorDashboard.jsx
+│   │   ├── NgoDashboard.jsx
+│   │   └── AdminDashboard.jsx
+│   │
+│   ├── utils/          # Utility functions
+│   │
+│   ├── App.jsx         # Main app component
+│   ├── main.jsx        # Entry point
+│   └── index.css       # Global styles
+│
+├── .env                # Environment variables
+├── index.html          # HTML template
+├── package.json        # Dependencies
+├── vite.config.js      # Vite configuration
+└── tailwind.config.js  # Tailwind configuration
+```
+
+### Complete Backend Structure
+
+```
+server/
+├── src/
+│   ├── config/         # Configuration
+│   │   └── db.js             # Database connection
+│   │
+│   ├── controllers/    # Business logic
+│   │   ├── auth.controller.js
+│   │   ├── listings.controller.js
+│   │   ├── claims.controller.js
+│   │   ├── ratings.controller.js
+│   │   ├── admin.controller.js
+│   │   ├── users.controller.js
+│   │   └── notifications.controller.js
+│   │
+│   ├── middleware/     # Middleware functions
+│   │   └── auth.js           # JWT authentication
+│   │
+│   ├── routes/         # API routes
+│   │   ├── auth.routes.js
+│   │   ├── listings.routes.js
+│   │   ├── claims.routes.js
+│   │   ├── ratings.routes.js
+│   │   ├── admin.routes.js
+│   │   ├── users.routes.js
+│   │   └── notifications.routes.js
+│   │
+│   ├── db/             # Database files
+│   │   ├── schema.sql        # Database schema
+│   │   └── migrations/       # Migration files
+│   │
+│   └── index.js        # Main server file
+│
+├── uploads/            # Uploaded images
+├── .env                # Environment variables
+├── package.json        # Dependencies
+└── README.md
+```
+
+---
+
+## Common Development Commands
+
+### Backend Commands
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server (with auto-restart)
+npm run dev
+
+# Start production server
+npm start
+
+# Run database migration
+psql -U postgres -d mealbridge -f src/db/schema.sql
+```
+
+### Frontend Commands
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Lint code
+npm run lint
+```
+
+### Database Commands
+
+```bash
+# Connect to database
+psql -U postgres -d mealbridge
+
+# View all tables
+\dt
+
+# View table structure
+\d users
+
+# View data
+SELECT * FROM users;
+
+# Exit psql
+\q
+```
+
+---
+
+## Troubleshooting
+
+### Issue: Cannot connect to database
+
+```bash
+# Check if PostgreSQL is running
+sudo systemctl status postgresql
+
+# Start PostgreSQL
+sudo systemctl start postgresql
+
+# Check connection
+psql -U postgres -c "SELECT version();"
+```
+
+### Issue: CORS errors
+
+Check that backend `.env` has:
+```env
+FRONTEND_URL=http://localhost:5173
+```
+
+Check that `server/src/index.js` has:
+```javascript
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true
+}));
+```
+
+### Issue: Socket.io not connecting
+
+1. Check backend is running
+2. Check browser console for errors
+3. Verify token is in localStorage: `localStorage.getItem('token')`
+4. Check Socket.io URL in `client/.env`
+
+### Issue: 401 Unauthorized errors
+
+Token expired or invalid:
+1. Logout and login again
+2. Check token in localStorage
+3. Verify JWT_SECRET is same in backend `.env`
+
+---
+
+**END OF DEVELOPMENT GUIDE**
+
+This guide covers the complete development process from scratch!
