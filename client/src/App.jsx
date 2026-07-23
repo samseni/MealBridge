@@ -13,6 +13,9 @@ import ResendVerification from './pages/ResendVerification';
 import DonorDashboard from './pages/DonorDashboard';
 import NgoDashboard from './pages/NgoDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminUsers from './pages/admin/Users';
+import AdminVerifications from './pages/admin/Verifications';
+import AdminReports from './pages/admin/Reports';
 import Profile from './pages/Profile';
 
 // Protected Route Component
@@ -46,7 +49,7 @@ const RootRedirect = () => {
     case 'ngo':
       return <Navigate to="/ngo" />;
     case 'admin':
-      return <Navigate to="/admin" />;
+      return <Navigate to="/admin-dashboard" />;
     default:
       return <Navigate to="/login" />;
   }
@@ -82,10 +85,37 @@ function AppRoutes() {
       />
 
       <Route
-        path="/admin"
+        path="/admin-dashboard"
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminUsers />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/verifications"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminVerifications />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/reports"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminReports />
           </ProtectedRoute>
         }
       />

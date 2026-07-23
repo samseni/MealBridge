@@ -14,11 +14,17 @@ router.patch('/users/:id/status', adminController.toggleUserStatus);
 
 // NGO verification
 router.get('/verifications/pending', adminController.getPendingVerifications);
+router.get('/verifications', adminController.getVerificationRequests);
+router.patch('/verifications/:id/review', adminController.reviewVerification);
 router.patch('/verifications/:id/approve', adminController.approveNGO);
 router.patch('/verifications/:id/reject', adminController.rejectNGO);
 
-// Platform statistics
+// Platform statistics & analytics
 router.get('/stats', adminController.getPlatformStats);
+router.get('/analytics', adminController.getAnalytics);
+
+// Reports
+router.get('/reports/export', adminController.exportReport);
 
 // Recent activity
 router.get('/activity', adminController.getRecentActivity);

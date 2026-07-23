@@ -919,6 +919,215 @@ Suspend or activate user account
 
 ---
 
+### GET `/admin/verifications`
+Get all verification requests with filters (NEW - Added July 2026)
+
+**Query Parameters:**
+```
+status=pending      (optional - filter by status: pending/approved/rejected/all)
+```
+
+**Response (200):**
+```json
+{
+  "requests": [
+    {
+      "id": 2,
+      "user_name": "Jane Smith",
+      "user_email": "jane@foodbank.org",
+      "org_name": "City Food Bank",
+      "phone": "+1234567890",
+      "status": "pending",
+      "registration_number": "NGO12345",
+      "documents": ["https://cdn.mealbridge.com/docs/cert1.pdf"],
+      "admin_note": null,
+      "reviewed_at": null,
+      "created_at": "2026-07-20T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### PATCH `/admin/verifications/:id/review`
+Review and approve/reject NGO verification with admin notes (NEW - Added July 2026)
+
+**Request Body:**
+```json
+{
+  "status": "approved",
+  "admin_note": "All documents verified. Registration number confirmed."
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "Verification approved successfully",
+  "user": {
+    "id": 2,
+    "name": "Jane Smith",
+    "org_name": "City Food Bank",
+    "email": "jane@foodbank.org",
+    "verification": "approved"
+  }
+}
+```
+
+**Side Effects:**
+- User's `verification` status updated
+- Admin note saved to verification_requests table
+- Email notification sent to NGO
+
+**Errors:**
+- `400`: Invalid status or missing admin note
+- `404`: NGO not found
+
+---
+
+### GET `/admin/analytics`
+Get platform analytics with date range filtering (NEW - Added July 2026)
+
+**Query Parameters:**
+```
+start_date=2026-06-01  (optional - defaults to 30 days ago)
+end_date=2026-07-23    (optional - defaults to today)
+```
+
+**Response (200):**
+```json
+{
+  "total_users": 200,
+  "total_donors": 150,
+  "total_ngos": 45,
+  "total_admins": 5,
+  "active_users": 180,
+  "verified_ngos": 40,
+  "pending_verifications": 5,
+  "total_listings": 500,
+  "active_listings": 45,
+  "listings_created": 120,
+  "total_meals": 15000,
+  "total_weight": 7500,
+  "total_claims": 430,
+  "successful_claims": 400,
+  "claims_made": 110,
+  "new_users": 25,
+  "verification_requests": 8,
+  "waste_prevented": 7500,
+  "top_donors": [
+    {
+      "id": 1,
+      "name": "John's Restaurant",
+      "avg_rating": 4.8,
+      "listings_count": 50
+    }
+  ],
+  "top_ngos": [
+    {
+      "id": 2,
+      "name": "Jane Smith",
+      "org_name": "City Food Bank",
+      "avg_rating": 4.9,
+      "claims_count": 45
+    }
+  ]
+}
+```
+
+---
+
+### GET `/admin/reports/export`
+Export platform reports as CSV or PDF (NEW - Added July 2026)
+
+**Query Parameters:**
+```
+start_date=2026-06-01  (optional - defaults to 30 days ago)
+end_date=2026-07-23    (optional - defaults to today)
+format=csv             (required - csv or pdf)
+```
+
+**Response (200):**
+```
+Content-Type: text/csv (or application/pdf)
+Content-Disposition: attachment; filename=mealbridge-report-2026-06-01-to-2026-07-23.csv
+
+CSV Content:
+Type,ID,Title,Description,Servings,Status,Created At,Completed/Expired At,Created By,Email
+Listing,1,"Fresh Biryani","50 servings of vegetable biryani",50,completed,2026-06-15T10:00:00Z,2026-06-15T18:00:00Z,John Doe,john@example.com
+Claim,1,"Fresh Biryani",,50,completed,2026-06-15T11:00:00Z,2026-06-15T17:00:00Z,City Food Bank,jane@foodbank.org
+```
+
+**Side Effects:**
+- Downloads file to user's device
+- File includes all listings and claims within date range
+
+**Errors:**
+- `400`: Invalid format (must be csv or pdf)
+
+---
+
+### DELETE `/admin/users/:id`
+Delete user account (Admin only)
+
+**Response (200):**
+```json
+{
+  "message": "User deleted successfully"
+}
+```
+
+**Errors:**
+- `403`: Cannot delete admin users
+- `404`: User not found
+
+---
+
+### GET `/admin/activity`
+Get recent platform activity
+
+**Query Parameters:**
+```
+limit=20  (optional - default 20)
+```
+
+**Response (200):**
+```json
+{
+  "activities": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "role": "donor",
+      "activity_type": "registration",
+      "created_at": "2026-07-23T10:00:00Z"
+    },
+    {
+      "id": 1,
+      "title": "Fresh Biryani",
+      "servings": 50,
+      "status": "available",
+      "donor_name": "John Doe",
+      "activity_type": "listing",
+      "created_at": "2026-07-23T11:00:00Z"
+    },
+    {
+      "id": 1,
+      "title": "Fresh Biryani",
+      "donor_name": "John Doe",
+      "ngo_name": "Jane Smith",
+      "org_name": "City Food Bank",
+      "activity_type": "claim",
+      "claimed_at": "2026-07-23T12:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
 ## 7. Notifications APIs
 
 ### GET `/notifications`
@@ -1326,9 +1535,36 @@ requireRole(['donor', 'admin']) // Donors or admins
 
 #### Admin Dashboard (`/admin-dashboard`)
 - Platform statistics
-- NGO verification queue
-- User management
+- NGO verification queue overview
+- User management overview
 - Platform health metrics
+
+#### Admin Users Page (`/admin/users`) **NEW - Added July 2026**
+- Complete user management interface
+- Search users by name, email, organization
+- Filter by role (donor/ngo/admin)
+- Filter by verification status
+- Suspend/activate user accounts
+- User statistics cards
+- Pagination support
+
+#### Admin Verifications Page (`/admin/verifications`) **NEW - Added July 2026**
+- NGO verification review system
+- Filter by status (pending/approved/rejected)
+- Review modal with approve/reject actions
+- Add admin notes for decisions
+- View submitted documents
+- Track review history
+- Verification statistics
+
+#### Admin Reports Page (`/admin/reports`) **NEW - Added July 2026**
+- Analytics dashboard with date range filtering
+- Platform statistics (listings, claims, users)
+- User breakdown (donors, NGOs, admins)
+- Activity statistics with progress bars
+- Food impact metrics (meals, weight, waste prevented)
+- Top donors and NGOs leaderboards
+- Export reports as CSV or PDF
 
 #### Profile Page (`/profile`)
 - View/edit profile

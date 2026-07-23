@@ -22,7 +22,10 @@ const roleMiddleware = (...allowedRoles) => {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    // Flatten array if first argument is an array
+    const roles = Array.isArray(allowedRoles[0]) ? allowedRoles[0] : allowedRoles;
+
+    if (!roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 

@@ -9,18 +9,18 @@
 
 ## How to Access Admin Dashboard
 
-1. Go to http://localhost:5174/login
+1. Go to http://localhost:5173/login
 2. Enter the credentials above
-3. You will be redirected to the admin dashboard at `/admin`
+3. You will be redirected to the admin dashboard at `/admin-dashboard`
 
 ---
 
 ## Admin Features
 
-- **Dashboard:** View platform statistics and metrics
-- **Verifications:** Approve or reject NGO verification requests
-- **Statistics:** Detailed platform analytics
-- **Users:** User management (coming soon)
+- **Dashboard (`/admin-dashboard`):** View platform statistics and metrics
+- **Users (`/admin/users`):** Complete user management with search, filters, and suspend/activate
+- **Verifications (`/admin/verifications`):** Review and approve/reject NGO verification requests
+- **Reports (`/admin/reports`):** Platform analytics with date range filtering and CSV/PDF export
 
 ---
 

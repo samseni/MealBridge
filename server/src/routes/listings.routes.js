@@ -10,8 +10,8 @@ router.delete('/images/:filename', authMiddleware, roleMiddleware('donor'), list
 
 // Listing routes
 router.post('/', authMiddleware, roleMiddleware('donor'), listingsController.createListing);
-router.get('/all', authMiddleware, roleMiddleware('ngo'), listingsController.getAllListings);
-router.get('/nearby', authMiddleware, roleMiddleware('ngo'), listingsController.getNearbyListings);
+router.get('/all', authMiddleware, roleMiddleware(['ngo', 'admin']), listingsController.getAllListings);
+router.get('/nearby', authMiddleware, roleMiddleware(['ngo', 'admin']), listingsController.getNearbyListings);
 router.get('/mine', authMiddleware, listingsController.getMyListings);
 router.get('/:id', authMiddleware, listingsController.getListingById);
 router.patch('/:id', authMiddleware, roleMiddleware('donor'), listingsController.updateListing);

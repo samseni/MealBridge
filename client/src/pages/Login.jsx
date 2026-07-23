@@ -27,7 +27,7 @@ export default function Login() {
       } else if (role === 'ngo') {
         navigate('/ngo');
       } else if (role === 'admin') {
-        navigate('/admin');
+        navigate('/admin-dashboard');
       } else {
         // Default fallback if role is not recognized
         navigate('/');

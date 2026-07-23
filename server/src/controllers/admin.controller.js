@@ -199,7 +199,7 @@ exports.getPlatformStats = async (req, res) => {
     // Monthly trends (last 6 months)
     const monthlyTrends = await pool.query(`
       SELECT
-        TO_CHAR(month, 'YYYY-MM') as month,
+        TO_CHAR(months.month, 'YYYY-MM') as month,
         COALESCE(listings_count, 0) as listings_count,
         COALESCE(claims_count, 0) as claims_count,
         COALESCE(servings_count, 0) as servings_count
@@ -227,7 +227,7 @@ exports.getPlatformStats = async (req, res) => {
         WHERE claimed_at > NOW() - INTERVAL '6 months'
         GROUP BY date_trunc('month', claimed_at)
       ) claims ON months.month = claims.month
-      ORDER BY month DESC
+      ORDER BY months.month DESC
     `);
 
     res.json({
@@ -380,6 +380,265 @@ exports.getRecentActivity = async (req, res) => {
     res.json({ activities: allActivities });
   } catch (error) {
     console.error('Get recent activity error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get verification requests with filters
+exports.getVerificationRequests = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    let query = `
+      SELECT
+        u.id, u.name as user_name, u.email as user_email, u.phone,
+        u.org_name, u.verification as status,
+        u.created_at, u.updated_at,
+        vr.id as verification_id, vr.registration_number, vr.documents,
+        vr.admin_note, vr.reviewed_at
+      FROM users u
+      LEFT JOIN verification_requests vr ON u.id = vr.user_id
+      WHERE u.role = 'ngo'
+    `;
+    const params = [];
+
+    if (status && status !== 'all') {
+      query += ` AND u.verification = $1`;
+      params.push(status);
+    }
+
+    query += ` ORDER BY u.created_at DESC`;
+
+    const result = await pool.query(query, params);
+    res.json({ requests: result.rows });
+  } catch (error) {
+    console.error('Get verification requests error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Review verification request (approve/reject with notes)
+exports.reviewVerification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, admin_note } = req.body;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    if (!admin_note || admin_note.trim() === '') {
+      return res.status(400).json({ message: 'Admin note is required' });
+    }
+
+    // Update user verification status
+    const userResult = await pool.query(
+      `UPDATE users
+       SET verification = $1, updated_at = NOW()
+       WHERE id = $2 AND role = 'ngo'
+       RETURNING id, name, org_name, email, verification`,
+      [status, id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'NGO not found' });
+    }
+
+    // Update or insert verification request with admin note
+    await pool.query(
+      `INSERT INTO verification_requests (user_id, admin_note, reviewed_at, updated_at)
+       VALUES ($1, $2, NOW(), NOW())
+       ON CONFLICT (user_id)
+       DO UPDATE SET admin_note = $2, reviewed_at = NOW(), updated_at = NOW()`,
+      [id, admin_note]
+    );
+
+    res.json({
+      message: `Verification ${status} successfully`,
+      user: userResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Review verification error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get analytics with date range
+exports.getAnalytics = async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+    const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const endDate = end_date || new Date().toISOString();
+
+    // Total counts
+    const totalCounts = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE role = 'donor') as total_donors,
+        COUNT(*) FILTER (WHERE role = 'ngo') as total_ngos,
+        COUNT(*) FILTER (WHERE role = 'admin') as total_admins,
+        COUNT(*) FILTER (WHERE active = true) as active_users,
+        COUNT(*) FILTER (WHERE role = 'ngo' AND verification = 'approved') as verified_ngos,
+        COUNT(*) FILTER (WHERE role = 'ngo' AND verification = 'pending') as pending_verifications,
+        COUNT(*) as total_users
+      FROM users
+    `);
+
+    // Listing stats
+    const listingStats = await pool.query(`
+      SELECT
+        COUNT(*) as total_listings,
+        COUNT(*) FILTER (WHERE status = 'available') as active_listings,
+        COUNT(*) FILTER (WHERE created_at >= $1 AND created_at <= $2) as listings_created,
+        COALESCE(SUM(servings), 0) as total_meals,
+        COALESCE(SUM(weight), 0) as total_weight
+      FROM food_listings
+    `, [startDate, endDate]);
+
+    // Claim stats
+    const claimStats = await pool.query(`
+      SELECT
+        COUNT(*) as total_claims,
+        COUNT(*) FILTER (WHERE completed_at IS NOT NULL) as successful_claims,
+        COUNT(*) FILTER (WHERE claimed_at >= $1 AND claimed_at <= $2) as claims_made
+      FROM claims
+    `, [startDate, endDate]);
+
+    // New users in date range
+    const newUsers = await pool.query(`
+      SELECT COUNT(*) as new_users
+      FROM users
+      WHERE created_at >= $1 AND created_at <= $2
+    `, [startDate, endDate]);
+
+    // Verification requests in date range
+    const verificationRequests = await pool.query(`
+      SELECT COUNT(*) as verification_requests
+      FROM users
+      WHERE role = 'ngo' AND created_at >= $1 AND created_at <= $2
+    `, [startDate, endDate]);
+
+    // Top donors
+    const topDonors = await pool.query(`
+      SELECT
+        u.id, u.name, u.avg_rating,
+        COUNT(fl.id) as listings_count
+      FROM users u
+      LEFT JOIN food_listings fl ON u.id = fl.donor_id
+      WHERE u.role = 'donor'
+      GROUP BY u.id, u.name, u.avg_rating
+      ORDER BY listings_count DESC
+      LIMIT 10
+    `);
+
+    // Top NGOs
+    const topNgos = await pool.query(`
+      SELECT
+        u.id, u.name, u.org_name, u.avg_rating,
+        COUNT(c.id) as claims_count
+      FROM users u
+      LEFT JOIN claims c ON u.id = c.ngo_id
+      WHERE u.role = 'ngo'
+      GROUP BY u.id, u.name, u.org_name, u.avg_rating
+      ORDER BY claims_count DESC
+      LIMIT 10
+    `);
+
+    // Calculate waste prevented (assume 1 serving = 0.5 kg)
+    const wastePrevented = Math.round(listingStats.rows[0].total_meals * 0.5);
+
+    res.json({
+      ...totalCounts.rows[0],
+      ...listingStats.rows[0],
+      ...claimStats.rows[0],
+      new_users: parseInt(newUsers.rows[0].new_users),
+      verification_requests: parseInt(verificationRequests.rows[0].verification_requests),
+      waste_prevented: wastePrevented,
+      top_donors: topDonors.rows,
+      top_ngos: topNgos.rows
+    });
+  } catch (error) {
+    console.error('Get analytics error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Export report as CSV or PDF
+exports.exportReport = async (req, res) => {
+  try {
+    const { start_date, end_date, format = 'csv' } = req.query;
+    const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const endDate = end_date || new Date().toISOString();
+
+    // Get all data for the report
+    const result = await pool.query(`
+      SELECT
+        'Listing' as type,
+        fl.id, fl.title, fl.description, fl.servings, fl.status,
+        fl.created_at, fl.expires_at,
+        u.name as created_by, u.email as creator_email
+      FROM food_listings fl
+      JOIN users u ON fl.donor_id = u.id
+      WHERE fl.created_at >= $1 AND fl.created_at <= $2
+      UNION ALL
+      SELECT
+        'Claim' as type,
+        c.id::text, fl.title, NULL, fl.servings,
+        CASE WHEN c.completed_at IS NOT NULL THEN 'completed' ELSE 'pending' END as status,
+        c.claimed_at, c.completed_at,
+        ngo.org_name, ngo.email
+      FROM claims c
+      JOIN food_listings fl ON c.listing_id = fl.id
+      JOIN users ngo ON c.ngo_id = ngo.id
+      WHERE c.claimed_at >= $1 AND c.claimed_at <= $2
+      ORDER BY created_at DESC
+    `, [startDate, endDate]);
+
+    if (format === 'csv') {
+      // Generate CSV
+      const header = 'Type,ID,Title,Description,Servings,Status,Created At,Completed/Expired At,Created By,Email\n';
+      const rows = result.rows.map(row =>
+        `${row.type},${row.id},"${row.title || ''}","${row.description || ''}",${row.servings || ''},${row.status},${row.created_at},${row.expires_at || row.completed_at || ''},${row.created_by},${row.creator_email}`
+      ).join('\n');
+
+      const csv = header + rows;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=mealbridge-report-${startDate}-to-${endDate}.csv`);
+      res.send(csv);
+    } else if (format === 'pdf') {
+      // For PDF, we'll return a simple text format (in production, use a PDF library like pdfkit)
+      const pdfContent = `
+MealBridge Platform Report
+Date Range: ${startDate} to ${endDate}
+Generated: ${new Date().toISOString()}
+
+================================================================================
+
+Total Records: ${result.rows.length}
+
+${result.rows.map(row => `
+Type: ${row.type}
+ID: ${row.id}
+Title: ${row.title || 'N/A'}
+Servings: ${row.servings || 'N/A'}
+Status: ${row.status}
+Created: ${row.created_at}
+Created By: ${row.created_by} (${row.creator_email})
+${row.description ? `Description: ${row.description}` : ''}
+--------------------------------------------------------------------------------
+`).join('\n')}
+
+End of Report
+      `;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=mealbridge-report-${startDate}-to-${endDate}.pdf`);
+      res.send(pdfContent);
+    } else {
+      res.status(400).json({ message: 'Invalid format. Use csv or pdf' });
+    }
+  } catch (error) {
+    console.error('Export report error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
