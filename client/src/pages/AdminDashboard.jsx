@@ -5,6 +5,7 @@ import { listingsAPI } from '../api/listings.api';
 import StatsCard from '../components/donor/StatsCard';
 import { showToast } from '../components/common/ToastProvider';
 import EmptyState from '../components/common/EmptyState';
+import NotificationBell from '../components/common/NotificationBell';
 import Modal from '../components/common/Modal';
 import { SkeletonStats, SkeletonCard } from '../components/common/LoadingSkeleton';
 
@@ -192,19 +193,22 @@ export default function AdminDashboard() {
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <header className="bg-white shadow-sm">
-          <div className="px-8 py-6">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {currentView === 'dashboard' && 'Admin Dashboard'}
-              {currentView === 'verifications' && 'NGO Verifications'}
-              {currentView === 'stats' && 'Platform Statistics'}
-              {currentView === 'users' && 'User Management'}
-            </h2>
-            <p className="text-gray-600 mt-1">
-              {currentView === 'dashboard' && 'Monitor and manage the MealBridge platform'}
-              {currentView === 'verifications' && 'Review and approve NGO applications'}
-              {currentView === 'stats' && 'View detailed platform analytics'}
-              {currentView === 'users' && 'Manage platform users'}
-            </p>
+          <div className="px-8 py-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {currentView === 'dashboard' && 'Admin Dashboard'}
+                {currentView === 'verifications' && 'NGO Verifications'}
+                {currentView === 'stats' && 'Platform Statistics'}
+                {currentView === 'users' && 'User Management'}
+              </h2>
+              <p className="text-gray-600 mt-1">
+                {currentView === 'dashboard' && 'Monitor and manage the MealBridge platform'}
+                {currentView === 'verifications' && 'Review and approve NGO applications'}
+                {currentView === 'stats' && 'View detailed platform analytics'}
+                {currentView === 'users' && 'Manage platform users'}
+              </p>
+            </div>
+            <NotificationBell />
           </div>
         </header>
 
