@@ -41,4 +41,4 @@ runMigration();
 
 | Date | File | Description | Status |
 |------|------|-------------|--------|
-| 2026-07-23 | add_user_active_column.sql | Add user active/suspend feature | Pending |
+| 2026-07-23 | add_user_active_column.sql | Add user active/suspend feature | ✅ Complete |

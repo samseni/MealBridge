@@ -1,16 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from '../api/axios';
+import usersAPI from '../api/users.api';
 import { showToast } from '../components/common/ToastProvider';
 import Modal from '../components/common/Modal';
 
 export default function Profile() {
   const { user, logout, updateUser } = useAuth();
+  const fileInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('profile'); // profile, security, settings
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
 
   const [profileData, setProfileData] = useState({
     name: user?.name || '',
@@ -104,6 +107,62 @@ export default function Profile() {
     }
   };
 
+  const handleProfilePictureUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      showToast.error('Please upload a JPG, PNG, or WebP image');
+      return;
+    }
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      showToast.error('Image must be smaller than 2MB');
+      return;
+    }
+
+    setUploadingPicture(true);
+    try {
+      const response = await usersAPI.uploadProfilePicture(file);
+      const updatedUser = { ...user, profile_picture: response.data.profile_picture };
+      updateUser(updatedUser);
+      showToast.success('Profile picture updated successfully!');
+    } catch (error) {
+      showToast.error(error.response?.data?.message || 'Failed to upload profile picture');
+    } finally {
+      setUploadingPicture(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteProfilePicture = async () => {
+    if (!user?.profile_picture) return;
+
+    setUploadingPicture(true);
+    try {
+      await usersAPI.deleteProfilePicture();
+      const updatedUser = { ...user, profile_picture: null };
+      updateUser(updatedUser);
+      showToast.success('Profile picture removed');
+    } catch (error) {
+      showToast.error(error.response?.data?.message || 'Failed to delete profile picture');
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
+
+  const getProfilePictureUrl = () => {
+    if (user?.profile_picture) {
+      return `${axios.defaults.baseURL.replace('/api', '')}${user.profile_picture}`;
+    }
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -130,10 +189,58 @@ export default function Profile() {
           <div className="lg:col-span-1">
             <div className="card sticky top-8">
               <div className="flex flex-col items-center mb-6">
-                <div className="w-24 h-24 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-lg mb-4">
-                  {user?.name?.charAt(0).toUpperCase()}
+                <div className="relative group">
+                  {getProfilePictureUrl() ? (
+                    <img
+                      src={getProfilePictureUrl()}
+                      alt={user?.name}
+                      className="w-24 h-24 rounded-full object-cover shadow-lg"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-lg">
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  {/* Upload/Delete buttons */}
+                  <div className="absolute inset-0 rounded-full bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingPicture}
+                        className="p-2 bg-white rounded-full hover:bg-gray-100 transition-colors"
+                        title="Upload picture"
+                      >
+                        <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
+                      {user?.profile_picture && (
+                        <button
+                          onClick={handleDeleteProfilePicture}
+                          disabled={uploadingPicture}
+                          className="p-2 bg-red-500 rounded-full hover:bg-red-600 transition-colors"
+                          title="Remove picture"
+                        >
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <h3 className="font-semibold text-gray-900 text-lg">{user?.name}</h3>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleProfilePictureUpload}
+                  className="hidden"
+                />
+
+                <h3 className="font-semibold text-gray-900 text-lg mt-4">{user?.name}</h3>
                 <p className="text-sm text-gray-600">{user?.email}</p>
                 <span className={`mt-3 px-3 py-1 rounded-full text-xs font-semibold ${
                   user?.role === 'donor' ? 'bg-blue-100 text-blue-700' :

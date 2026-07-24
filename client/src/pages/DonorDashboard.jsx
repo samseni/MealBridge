@@ -8,12 +8,13 @@ import ImageUpload from '../components/common/ImageUpload';
 import Analytics from '../components/common/Analytics';
 import DonorHistory from '../components/donor/DonorHistory';
 import NotificationBell from '../components/common/NotificationBell';
+import Chat from '../components/common/Chat';
 import axios from 'axios';
 
 export default function DonorDashboard() {
   const { user, logout } = useAuth();
   const [listings, setListings] = useState([]);
-  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, create, listings, analytics, history
+  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, create, listings, messages, analytics, history
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -219,6 +220,13 @@ export default function DonorDashboard() {
             <span>My Listings</span>
           </button>
           <button
+            onClick={() => setCurrentView('messages')}
+            className={`sidebar-link w-full ${currentView === 'messages' ? 'sidebar-link-active' : ''}`}
+          >
+            <span className="text-xl">💬</span>
+            <span>Messages</span>
+          </button>
+          <button
             onClick={() => setCurrentView('analytics')}
             className={`sidebar-link w-full ${currentView === 'analytics' ? 'sidebar-link-active' : ''}`}
           >
@@ -264,6 +272,7 @@ export default function DonorDashboard() {
                 {currentView === 'dashboard' && 'Dashboard Overview'}
                 {currentView === 'create' && 'Create New Listing'}
                 {currentView === 'listings' && 'My Listings'}
+                {currentView === 'messages' && 'Messages'}
                 {currentView === 'analytics' && 'Analytics & Insights'}
                 {currentView === 'history' && 'Donation History'}
               </h2>
@@ -271,6 +280,7 @@ export default function DonorDashboard() {
                 {currentView === 'dashboard' && 'Welcome back! Here\'s your impact summary'}
                 {currentView === 'create' && 'Share your surplus food with those in need'}
                 {currentView === 'listings' && 'Manage all your food donation listings'}
+                {currentView === 'messages' && 'Communicate with NGOs about your donations'}
                 {currentView === 'analytics' && 'Track your donation impact and trends'}
                 {currentView === 'history' && 'View your complete donation history'}
               </p>
@@ -626,6 +636,9 @@ export default function DonorDashboard() {
               </div>
             </>
           )}
+
+          {/* Messages View */}
+          {currentView === 'messages' && <Chat />}
 
           {/* Analytics View */}
           {currentView === 'analytics' && <Analytics />}

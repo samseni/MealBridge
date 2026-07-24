@@ -140,11 +140,24 @@ exports.createListing = async (req, res, next) => {
 
 exports.getNearbyListings = async (req, res, next) => {
   try {
-    const { lat, lng, radius = 5000 } = req.query;
+    const { lat, lng, radius = 5000, page = 1, limit = 20 } = req.query;
 
     if (!lat || !lng) {
       return res.status(400).json({ message: 'Latitude and longitude are required' });
     }
+
+    const offset = (page - 1) * limit;
+
+    // Count total matching listings
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM food_listings l
+      WHERE l.status = 'available'
+        AND l.expires_at > NOW()
+        AND ST_DWithin(l.location, ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})'), $1)
+    `;
+    const countResult = await pool.query(countQuery, [radius]);
+    const total = parseInt(countResult.rows[0].total);
 
     const query = `
       SELECT l.*, u.name as donor_name, u.phone as donor_phone,
@@ -155,11 +168,20 @@ exports.getNearbyListings = async (req, res, next) => {
         AND l.expires_at > NOW()
         AND ST_DWithin(l.location, ST_GeogFromText('SRID=4326;POINT(${lng} ${lat})'), $1)
       ORDER BY distance ASC
+      LIMIT $2 OFFSET $3
     `;
 
-    const result = await pool.query(query, [radius]);
+    const result = await pool.query(query, [radius, limit, offset]);
 
-    res.json({ listings: result.rows });
+    res.json({
+      listings: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -167,7 +189,18 @@ exports.getNearbyListings = async (req, res, next) => {
 
 exports.getAllListings = async (req, res, next) => {
   try {
-    const { lat, lng } = req.query;
+    const { lat, lng, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Count total listings
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM food_listings l
+      WHERE l.status = 'available'
+        AND l.expires_at > NOW()
+    `;
+    const countResult = await pool.query(countQuery);
+    const total = parseInt(countResult.rows[0].total);
 
     // If lat/lng provided, calculate distance; otherwise just return all listings
     let query;
@@ -180,6 +213,7 @@ exports.getAllListings = async (req, res, next) => {
         WHERE l.status = 'available'
           AND l.expires_at > NOW()
         ORDER BY distance ASC
+        LIMIT $1 OFFSET $2
       `;
     } else {
       query = `
@@ -190,12 +224,21 @@ exports.getAllListings = async (req, res, next) => {
         WHERE l.status = 'available'
           AND l.expires_at > NOW()
         ORDER BY l.created_at DESC
+        LIMIT $1 OFFSET $2
       `;
     }
 
-    const result = await pool.query(query);
+    const result = await pool.query(query, [limit, offset]);
 
-    res.json({ listings: result.rows });
+    res.json({
+      listings: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     next(error);
   }

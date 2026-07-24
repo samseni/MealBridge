@@ -11,12 +11,13 @@ import Analytics from '../components/common/Analytics';
 import NgoHistory from '../components/ngo/NgoHistory';
 import MapView from '../components/common/MapView';
 import NotificationBell from '../components/common/NotificationBell';
+import Chat from '../components/common/Chat';
 
 export default function NgoDashboard() {
   const { user, logout } = useAuth();
   const [listings, setListings] = useState([]);
   const [myClaims, setMyClaims] = useState([]);
-  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, find, claims, map, analytics, history
+  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, find, claims, messages, map, analytics, history
   const [searchQuery, setSearchQuery] = useState('');
   const [mapSearchQuery, setMapSearchQuery] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
@@ -24,6 +25,12 @@ export default function NgoDashboard() {
   const [searchingLocation, setSearchingLocation] = useState(false);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimingListingId, setClaimingListingId] = useState(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [schedulingClaim, setSchedulingClaim] = useState(null);
+  const [scheduleData, setScheduleData] = useState({
+    scheduled_pickup_time: '',
+    pickup_instructions: ''
+  });
   const [claimsFilter, setClaimsFilter] = useState('all'); // all, active, completed
   const [filters, setFilters] = useState({
     category: 'all',
@@ -105,6 +112,29 @@ export default function NgoDashboard() {
       fetchMyClaims();
     } catch (error) {
       showToast.error(error.response?.data?.message || 'Failed to update claim');
+    }
+  };
+
+  const openScheduleModal = (claim) => {
+    setSchedulingClaim(claim);
+    setScheduleData({
+      scheduled_pickup_time: claim.scheduled_pickup_time || '',
+      pickup_instructions: claim.pickup_instructions || ''
+    });
+    setShowScheduleModal(true);
+  };
+
+  const handleSchedulePickup = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.patch(`/claims/${schedulingClaim.id}/schedule`, scheduleData);
+      showToast.success('Pickup time scheduled successfully!');
+      setShowScheduleModal(false);
+      setSchedulingClaim(null);
+      setScheduleData({ scheduled_pickup_time: '', pickup_instructions: '' });
+      fetchMyClaims();
+    } catch (error) {
+      showToast.error(error.response?.data?.message || 'Failed to schedule pickup');
     }
   };
 
@@ -361,6 +391,13 @@ export default function NgoDashboard() {
             )}
           </button>
           <button
+            onClick={() => setCurrentView('messages')}
+            className={`sidebar-link w-full ${currentView === 'messages' ? 'sidebar-link-active' : ''}`}
+          >
+            <span className="text-xl">💬</span>
+            <span>Messages</span>
+          </button>
+          <button
             onClick={() => setCurrentView('map')}
             className={`sidebar-link w-full ${currentView === 'map' ? 'sidebar-link-active' : ''}`}
           >
@@ -413,6 +450,7 @@ export default function NgoDashboard() {
                 {currentView === 'dashboard' && 'Dashboard Overview'}
                 {currentView === 'find' && 'Find Available Food'}
                 {currentView === 'claims' && 'My Claims'}
+                {currentView === 'messages' && 'Messages'}
                 {currentView === 'map' && 'Food Map View'}
                 {currentView === 'analytics' && 'Analytics & Insights'}
                 {currentView === 'history' && 'Claim History'}
@@ -421,6 +459,7 @@ export default function NgoDashboard() {
                 {currentView === 'dashboard' && 'Track your food rescue activities'}
                 {currentView === 'find' && 'Browse and claim available food donations'}
                 {currentView === 'claims' && 'Manage your active and completed claims'}
+                {currentView === 'messages' && 'Communicate with donors about your claims'}
                 {currentView === 'map' && 'Visualize nearby food donations on the map'}
                 {currentView === 'analytics' && 'Track your rescue impact and trends'}
                 {currentView === 'history' && 'View your complete claim history'}
@@ -734,8 +773,13 @@ export default function NgoDashboard() {
                         <div className="pt-2 border-t">
                           <p className="text-xs text-gray-500 mb-1">📍 {claim.address}</p>
                           <p className="text-xs text-gray-500">
-                            Claimed: {new Date(claim.claimed_at).toLocaleString()}
+                            Pickup Window: {new Date(claim.pickup_start).toLocaleString()} - {new Date(claim.pickup_end).toLocaleString()}
                           </p>
+                          {claim.scheduled_pickup_time && (
+                            <p className="text-xs text-blue-600 mt-1 font-medium">
+                              🕒 Scheduled: {new Date(claim.scheduled_pickup_time).toLocaleString()}
+                            </p>
+                          )}
                           {claim.picked_up_at && (
                             <p className="text-xs text-green-600 mt-1">
                               ✓ Picked up: {new Date(claim.picked_up_at).toLocaleString()}
@@ -744,12 +788,20 @@ export default function NgoDashboard() {
                         </div>
                       </div>
                       {!claim.picked_up_at && !claim.completed_at && (
-                        <button
-                          onClick={() => markInTransit(claim.id)}
-                          className="w-full btn btn-primary btn-sm"
-                        >
-                          ✅ Mark as Picked Up
-                        </button>
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => openScheduleModal(claim)}
+                            className="w-full btn btn-outline btn-sm"
+                          >
+                            🕒 {claim.scheduled_pickup_time ? 'Update' : 'Schedule'} Pickup
+                          </button>
+                          <button
+                            onClick={() => markInTransit(claim.id)}
+                            className="w-full btn btn-primary btn-sm"
+                          >
+                            ✅ Mark as Picked Up
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))
@@ -757,6 +809,9 @@ export default function NgoDashboard() {
               </div>
             </>
           )}
+
+          {/* Messages View */}
+          {currentView === 'messages' && <Chat />}
 
           {/* Map View */}
           {currentView === 'map' && (
@@ -834,6 +889,93 @@ export default function NgoDashboard() {
         <p className="text-gray-700">
           Are you sure you want to claim this food listing? Once claimed, you'll be responsible for picking it up during the specified time window.
         </p>
+      </Modal>
+
+      {/* Schedule Pickup Modal */}
+      <Modal
+        isOpen={showScheduleModal}
+        onClose={() => {
+          setShowScheduleModal(false);
+          setSchedulingClaim(null);
+          setScheduleData({ scheduled_pickup_time: '', pickup_instructions: '' });
+        }}
+        title="Schedule Pickup Time"
+        footer={
+          <>
+            <button
+              onClick={() => {
+                setShowScheduleModal(false);
+                setSchedulingClaim(null);
+                setScheduleData({ scheduled_pickup_time: '', pickup_instructions: '' });
+              }}
+              className="btn btn-ghost"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSchedulePickup}
+              className="btn btn-primary"
+              disabled={!scheduleData.scheduled_pickup_time}
+            >
+              {schedulingClaim?.scheduled_pickup_time ? 'Update' : 'Schedule'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleSchedulePickup} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Pickup Window
+            </label>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-900">
+                {schedulingClaim && (
+                  <>
+                    {new Date(schedulingClaim.pickup_start).toLocaleString()} <br />
+                    to {new Date(schedulingClaim.pickup_end).toLocaleString()}
+                  </>
+                )}
+              </p>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Please choose a time within this window
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Scheduled Pickup Time *
+            </label>
+            <input
+              type="datetime-local"
+              value={scheduleData.scheduled_pickup_time}
+              onChange={(e) => setScheduleData({
+                ...scheduleData,
+                scheduled_pickup_time: e.target.value
+              })}
+              className="input"
+              required
+              min={schedulingClaim?.pickup_start?.slice(0, 16)}
+              max={schedulingClaim?.pickup_end?.slice(0, 16)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Pickup Instructions (Optional)
+            </label>
+            <textarea
+              value={scheduleData.pickup_instructions}
+              onChange={(e) => setScheduleData({
+                ...scheduleData,
+                pickup_instructions: e.target.value
+              })}
+              className="input"
+              rows="3"
+              placeholder="e.g., Please call when you arrive, Use back entrance, etc."
+            />
+          </div>
+        </form>
       </Modal>
     </div>
   );
